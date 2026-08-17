@@ -1,0 +1,8 @@
+# Rust build artifacts
+/target/
+
+# Project documentation (local only)
+/docs/
+
+# macOS metadata
+.DS_Store
