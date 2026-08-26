@@ -6,36 +6,62 @@ use super::{
     TranslationRequest, TranslationRequestTemplate, TranslationWorkflowError, Translator,
 };
 
+/// 音频翻译总流程接口。
+///
+/// 按顺序编排统一音频输入、ASR、文本翻译和字幕导出四个阶段。
+/// 该 trait 只定义流程契约，不绑定具体 provider，因此可以替换本地模型、
+/// 云端服务和不同字幕格式实现。
 #[async_trait]
 pub trait AudioTranslationService: Send + Sync {
+    /// 执行一次完整的音频翻译任务。
+    ///
+    /// 请求对象集中携带四个阶段的配置，保证任务可以被持久化、排队、恢复或重试，
+    /// 同时避免把全局配置隐式地藏在 service 内部。返回值保留各阶段结果，便于调用方
+    /// 直接展示转录、审校译文、重新导出字幕或记录诊断信息。
     async fn translate(
         &self,
         request: AudioTranslationRequest,
     ) -> Result<AudioTranslationResult, TranslationWorkflowError>;
 }
 
+/// 一次完整音频翻译任务的输入参数。
+///
+/// 将输入、ASR、翻译和输出配置放在同一个值对象中，是为了让一次任务的行为完整可描述；
+/// 任务调度层可以在不理解 provider 细节的情况下传递这组参数。
 pub struct AudioTranslationRequest {
-    /// 待处理的统一音频输入。
+    /// 待处理的统一音频输入；使用 trait object 允许运行时切换文件、网络和实时输入。
     pub input: Box<dyn AudioInput>,
-    /// ASR 阶段的请求参数。
+    /// ASR 阶段的请求参数；单独保留以控制语言、时间戳粒度和说话人识别。
     pub asr: AsrRequest,
-    /// 翻译阶段的请求模板。
+    /// 翻译阶段的请求模板；流程会根据 ASR 结果补齐源文本和上下文。
     pub translation: TranslationRequestTemplate,
-    /// 字幕导出阶段的请求参数或导出结果。
+    /// 字幕导出阶段的请求参数；与内部字幕模型分离以支持多种输出格式。
     pub output: SubtitleExportRequest,
 }
 
+/// 一次完整音频翻译任务的结果。
+///
+/// 同时返回中间结果和最终导出结果，避免调用方为了预览、审校或重新导出而重复执行 ASR、
+/// 翻译流程；各阶段失败则通过 `TranslationWorkflowError` 标记具体阶段。
 pub struct AudioTranslationResult {
-    /// ASR 生成的源语言转录结果。
+    /// ASR 生成的源语言转录结果，包含原文片段和时间轴。
     pub transcript: Transcript,
-    /// 翻译 provider 生成的目标语言结果。
+    /// 翻译 provider 生成的目标语言结果，并保留与源片段的关联。
     pub translated: TranslatedTranscript,
-    /// 由转录和译文组合生成的内部字幕文档。
+    /// 由转录和译文组合生成的内部字幕文档，是格式无关的中间表示。
     pub subtitle: SubtitleDocument,
-    /// 字幕导出阶段的请求参数或导出结果。
+    /// 字幕导出的最终字节和建议文件名。
     pub output: SubtitleOutput,
 }
 
+/// 核心音频翻译流程的默认组合实现。
+///
+/// 通过三个泛型参数注入 ASR、翻译和字幕导出实现：
+/// - `A` 决定音频如何被识别；
+/// - `T` 决定文本如何被翻译；
+/// - `E` 决定字幕如何序列化。
+///
+/// 这种组合方式将流程编排与具体 provider 解耦，也避免核心层依赖某一家云服务或模型。
 pub struct CoreAudioTranslationService<A, T, E> {
     /// 实际使用的 ASR provider 实现。
     pub asr: A,
@@ -46,6 +72,10 @@ pub struct CoreAudioTranslationService<A, T, E> {
 }
 
 impl<A, T, E> CoreAudioTranslationService<A, T, E> {
+    /// 使用指定的 ASR、翻译和字幕导出实现创建核心流程服务。
+    ///
+    /// 参数采用泛型而不是 `Box<dyn ...>`，可以保留静态分发和类型检查；需要运行时切换
+    /// provider 时，调用方仍可在外层使用 trait object 或枚举适配器。
     pub fn new(asr: A, translator: T, exporter: E) -> Self {
         Self {
             asr,
