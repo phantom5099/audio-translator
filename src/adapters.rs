@@ -2,87 +2,49 @@
 //! core contracts. Real FFmpeg/GStreamer, network, microphone and provider
 //! adapters should live in separate crates or modules.
 
-use std::collections::VecDeque;
-
 use async_trait::async_trait;
 
 use crate::{
-    AudioChunk, AudioFormat, AudioInfo, AudioInput, CoreError, ExportError, LineBreakPolicy,
-    SubtitleDocument, SubtitleExportRequest, SubtitleExporter, SubtitleFormat, SubtitleOutput,
-    TextEncoding,
+    audio_input::AudioInput,
+    error::{CoreError, ExportError},
+    subtitle::{
+        LineBreakPolicy, SubtitleDocument, SubtitleExportRequest, SubtitleExporter, SubtitleFormat,
+        SubtitleOutput, TextEncoding,
+    },
 };
 
-/// A finite in-memory audio input. It does not decode or resample audio; the
-/// caller must provide chunks already normalized for the selected ASR provider.
+/// 用于测试或内存媒体来源的完整音频输入。
 pub struct MemoryAudioInput {
-    /// 音频输入的元信息。
-    info: AudioInfo,
-    /// 尚未读取的音频块队列。
-    chunks: VecDeque<AudioChunk>,
+    /// 尚未读取的原始媒体字节。
+    bytes: Vec<u8>,
     /// 音频输入是否已经关闭。
     closed: bool,
 }
 
 impl MemoryAudioInput {
-    pub fn new(
-        format: AudioFormat,
-        chunks: impl IntoIterator<Item = AudioChunk>,
-        is_live: bool,
-    ) -> Result<Self, CoreError> {
-        format.validate()?;
-        let chunks: VecDeque<_> = chunks.into_iter().collect();
-        for chunk in &chunks {
-            chunk.validate()?;
-            if chunk.format != format {
-                return Err(CoreError::InvalidInput(
-                    "all memory input chunks must use the input format".to_owned(),
-                ));
-            }
-        }
-        let duration_ms = if is_live {
-            None
-        } else {
-            Some(
-                chunks
-                    .iter()
-                    .map(|chunk| u64::from(chunk.duration_ms))
-                    .sum(),
-            )
-        };
-        Ok(Self {
-            info: AudioInfo {
-                format,
-                duration_ms,
-                is_live,
-            },
-            chunks,
+    /// 使用原始媒体字节创建输入。
+    pub fn new(bytes: impl Into<Vec<u8>>) -> Self {
+        Self {
+            bytes: bytes.into(),
             closed: false,
-        })
-    }
-
-    pub fn remaining_chunks(&self) -> usize {
-        self.chunks.len()
+        }
     }
 }
 
 #[async_trait]
 impl AudioInput for MemoryAudioInput {
-    async fn info(&self) -> Result<AudioInfo, CoreError> {
-        Ok(self.info.clone())
-    }
-
-    async fn next_chunk(&mut self) -> Result<Option<AudioChunk>, CoreError> {
+    async fn read_all(&mut self) -> Result<Vec<u8>, CoreError> {
         if self.closed {
             return Err(CoreError::InvalidInput(
                 "cannot read a closed audio input".to_owned(),
             ));
         }
-        Ok(self.chunks.pop_front())
+        Ok(std::mem::take(&mut self.bytes))
     }
 
     async fn close(&mut self) -> Result<(), CoreError> {
         self.closed = true;
-        self.chunks.clear();
+        self.bytes.clear();
         Ok(())
     }
 }

@@ -1,9 +1,13 @@
 use async_trait::async_trait;
 
 use crate::{
-    AsrEngine, AsrRequest, AudioInput, ContextPolicy, ContextSegment, SubtitleDocument,
-    SubtitleExportRequest, SubtitleOutput, Transcript, TranslatedTranscript, TranslationContext,
-    TranslationRequest, TranslationRequestTemplate, TranslationWorkflowError, Translator,
+    asr::{AsrEngine, AsrRequest, Transcript},
+    audio_input::AudioInput,
+    error::TranslationWorkflowError,
+    subtitle::{SubtitleDocument, SubtitleExportRequest, SubtitleExporter, SubtitleOutput},
+    translation::{
+        TranslatedTranscript, TranslationRequest, TranslationRequestTemplate, Translator,
+    },
 };
 
 /// 音频翻译总流程接口。
@@ -29,11 +33,11 @@ pub trait AudioTranslationService: Send + Sync {
 /// 将输入、ASR、翻译和输出配置放在同一个值对象中，是为了让一次任务的行为完整可描述；
 /// 任务调度层可以在不理解 provider 细节的情况下传递这组参数。
 pub struct AudioTranslationRequest {
-    /// 待处理的统一音频输入；使用 trait object 允许运行时切换文件、网络和实时输入。
+    /// 待处理的统一音频输入；使用 trait object 允许运行时切换文件和网络来源。
     pub input: Box<dyn AudioInput>,
-    /// ASR 阶段的请求参数；单独保留以控制语言、时间戳粒度和说话人识别。
+    /// ASR 阶段的请求参数；单独保留语言和 provider 专属配置。
     pub asr: AsrRequest,
-    /// 翻译阶段的请求模板；流程会根据 ASR 结果补齐源文本和上下文。
+    /// 翻译阶段的请求模板；流程会根据 ASR 结果补齐源文本和时间轴。
     pub translation: TranslationRequestTemplate,
     /// 字幕导出阶段的请求参数；与内部字幕模型分离以支持多种输出格式。
     pub output: SubtitleExportRequest,
@@ -90,7 +94,7 @@ impl<A, T, E> AudioTranslationService for CoreAudioTranslationService<A, T, E>
 where
     A: AsrEngine,
     T: Translator,
-    E: crate::SubtitleExporter,
+    E: SubtitleExporter,
 {
     async fn translate(
         &self,
@@ -107,8 +111,6 @@ where
             source_language: transcript.language.clone(),
             target_language: request.translation.target_language,
             segments: transcript.segments.clone(),
-            context: build_context(&transcript, &request.translation.context_policy),
-            glossary: request.translation.glossary,
             constraints: request.translation.constraints,
             options: request.translation.options,
         };
@@ -136,41 +138,6 @@ where
     }
 }
 
-fn build_context(transcript: &Transcript, policy: &ContextPolicy) -> TranslationContext {
-    let to_context = |segment: &crate::TranscriptSegment| ContextSegment {
-        segment_id: segment.id,
-        text: segment.text.clone(),
-    };
-
-    match policy {
-        ContextPolicy::None => TranslationContext::default(),
-        ContextPolicy::Document => TranslationContext {
-            previous: transcript.segments.iter().map(to_context).collect(),
-            next: Vec::new(),
-            document_summary: None,
-            style: None,
-        },
-        ContextPolicy::NeighboringSegments { before, after } => TranslationContext {
-            previous: transcript
-                .segments
-                .iter()
-                .take(*before)
-                .map(to_context)
-                .collect(),
-            next: transcript
-                .segments
-                .iter()
-                .rev()
-                .take(*after)
-                .rev()
-                .map(to_context)
-                .collect(),
-            document_summary: None,
-            style: None,
-        },
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use futures::executor::block_on;
@@ -178,49 +145,39 @@ mod tests {
 
     use super::*;
     use crate::{
-        AsrError, AudioChunk, AudioFormat, AudioSamples, AudioTranslationService, ContextPolicy,
-        JsonSubtitleExporter, LanguageTag, LineBreakPolicy, MemoryAudioInput, SampleFormat,
-        SampleLayout, SubtitleExportRequest, SubtitleFormat, TextEncoding, TimeRange,
-        TimestampLevel, TranscriptSegment, TranslatedSegment, TranslationConstraints,
-        TranslationError, TranslationRequestTemplate, TranslationWarning,
+        adapters::{JsonSubtitleExporter, MemoryAudioInput},
+        asr::{AsrEngine, AsrRequest, TranscriptSegment},
+        audio_input::AudioInput,
+        common::{LanguageTag, TimeRange},
+        error::{AsrError, TranslationError},
+        pipeline::AudioTranslationService,
+        subtitle::{LineBreakPolicy, SubtitleExportRequest, SubtitleFormat, TextEncoding},
+        translation::{
+            TranslatedSegment, TranslationConstraints, TranslationRequest,
+            TranslationRequestTemplate, TranslationWarning, Translator,
+        },
     };
 
     struct TestAsr {
-        /// 上下文或事件关联的文本片段唯一标识。
+        /// 测试转录片段的稳定唯一标识。
         segment_id: Uuid,
     }
 
     #[async_trait]
     impl AsrEngine for TestAsr {
-        fn audio_requirements(&self) -> crate::AudioFormatRequirement {
-            crate::AudioFormatRequirement {
-                accepted_sample_rates_hz: vec![16_000],
-                preferred_sample_rate_hz: Some(16_000),
-                accepted_channels: vec![1],
-                accepted_sample_formats: vec![SampleFormat::F32],
-                accepted_layouts: vec![SampleLayout::Interleaved],
-                requires_mono: true,
-            }
-        }
-
         async fn transcribe(
             &self,
             mut input: Box<dyn AudioInput>,
             request: AsrRequest,
         ) -> Result<Transcript, AsrError> {
-            assert_eq!(request.timestamp_level, TimestampLevel::Segment);
-            assert!(input.info().await.is_ok());
-            assert!(input.next_chunk().await.unwrap().is_some());
+            assert_eq!(request.source_language, Some(LanguageTag::from("en-US")));
+            assert_eq!(input.read_all().await.unwrap(), b"test audio");
             Ok(Transcript {
                 language: Some(LanguageTag::from("en-US")),
                 segments: vec![TranscriptSegment {
                     id: self.segment_id,
                     range: TimeRange::new(0, 10).unwrap(),
                     text: "hello".to_owned(),
-                    speaker: None,
-                    confidence: Some(0.99),
-                    words: None,
-                    revision: 0,
                 }],
             })
         }
@@ -235,7 +192,6 @@ mod tests {
             request: TranslationRequest,
         ) -> Result<TranslatedTranscript, TranslationError> {
             assert_eq!(request.target_language, LanguageTag::from("zh-CN"));
-            assert_eq!(request.context.previous.len(), 1);
             Ok(TranslatedTranscript {
                 source_language: request.source_language,
                 target_language: request.target_language,
@@ -247,7 +203,6 @@ mod tests {
                         range: segment.range,
                         source_text: segment.text,
                         translated_text: "你好".to_owned(),
-                        speaker: segment.speaker,
                         warnings: vec![TranslationWarning::ProviderWarning("test".to_owned())],
                     })
                     .collect(),
@@ -258,21 +213,7 @@ mod tests {
     #[test]
     fn core_service_composes_the_four_contracts() {
         let segment_id = Uuid::new_v4();
-        let format = AudioFormat {
-            sample_rate: 16_000,
-            channels: 1,
-            sample_format: SampleFormat::F32,
-            layout: SampleLayout::Interleaved,
-        };
-        let chunk = AudioChunk {
-            timestamp_ms: 0,
-            duration_ms: 10,
-            frames: 160,
-            samples: AudioSamples::F32(vec![0.0; 160]),
-            format: format.clone(),
-            is_final: true,
-        };
-        let input = MemoryAudioInput::new(format, [chunk], false).unwrap();
+        let input = MemoryAudioInput::new(b"test audio".to_vec());
         let service = CoreAudioTranslationService::new(
             TestAsr { segment_id },
             TestTranslator,
@@ -282,15 +223,10 @@ mod tests {
             input: Box::new(input),
             asr: AsrRequest {
                 source_language: Some(LanguageTag::from("en-US")),
-                timestamp_level: TimestampLevel::Segment,
-                enable_speaker_labels: false,
-                vocabulary: None,
                 options: Default::default(),
             },
             translation: TranslationRequestTemplate {
                 target_language: LanguageTag::from("zh-CN"),
-                context_policy: ContextPolicy::Document,
-                glossary: None,
                 constraints: TranslationConstraints::default(),
                 options: Default::default(),
             },
@@ -298,7 +234,6 @@ mod tests {
                 format: SubtitleFormat::Json,
                 encoding: TextEncoding::Utf8,
                 line_policy: LineBreakPolicy::Preserve,
-                include_speaker: false,
             },
         };
 
