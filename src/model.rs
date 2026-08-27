@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::CoreError;
+use crate::CoreError;
 
 pub type SegmentId = Uuid;
 pub type CueId = Uuid;

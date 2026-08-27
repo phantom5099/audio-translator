@@ -1,5 +1,3 @@
 fn main() {
-    println!(
-        "audio-translator core interfaces are available as the `audio_translator::core` module"
-    );
+    println!("audio-translator core interfaces are available through the audio_translator crate");
 }

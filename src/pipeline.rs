@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use super::{
+use crate::{
     AsrEngine, AsrRequest, AudioInput, ContextPolicy, ContextSegment, SubtitleDocument,
     SubtitleExportRequest, SubtitleOutput, Transcript, TranslatedTranscript, TranslationContext,
     TranslationRequest, TranslationRequestTemplate, TranslationWorkflowError, Translator,
@@ -90,7 +90,7 @@ impl<A, T, E> AudioTranslationService for CoreAudioTranslationService<A, T, E>
 where
     A: AsrEngine,
     T: Translator,
-    E: super::SubtitleExporter,
+    E: crate::SubtitleExporter,
 {
     async fn translate(
         &self,
@@ -137,7 +137,7 @@ where
 }
 
 fn build_context(transcript: &Transcript, policy: &ContextPolicy) -> TranslationContext {
-    let to_context = |segment: &super::TranscriptSegment| ContextSegment {
+    let to_context = |segment: &crate::TranscriptSegment| ContextSegment {
         segment_id: segment.id,
         text: segment.text.clone(),
     };
@@ -177,7 +177,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::core::{
+    use crate::{
         AsrError, AudioChunk, AudioFormat, AudioSamples, AudioTranslationService, ContextPolicy,
         JsonSubtitleExporter, LanguageTag, LineBreakPolicy, MemoryAudioInput, SampleFormat,
         SampleLayout, SubtitleExportRequest, SubtitleFormat, TextEncoding, TimeRange,
@@ -192,8 +192,8 @@ mod tests {
 
     #[async_trait]
     impl AsrEngine for TestAsr {
-        fn audio_requirements(&self) -> super::super::AudioFormatRequirement {
-            super::super::AudioFormatRequirement {
+        fn audio_requirements(&self) -> crate::AudioFormatRequirement {
+            crate::AudioFormatRequirement {
                 accepted_sample_rates_hz: vec![16_000],
                 preferred_sample_rate_hz: Some(16_000),
                 accepted_channels: vec![1],

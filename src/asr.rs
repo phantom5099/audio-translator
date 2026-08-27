@@ -1,39 +1,10 @@
 use async_trait::async_trait;
 
-use super::{
-    AsrError, AsrRequest, AudioChunk, AudioFormatRequirement, AudioInfo, CoreError, ExportError,
-    SegmentId, SubtitleDocument, SubtitleExportRequest, SubtitleOutput, TimeRange, Transcript,
-    TranscriptSegment, TranslatedTranscript, TranslationError, TranslationRequest,
+use crate::{
+    AsrError, AsrRequest, AsrVocabulary, AudioChunk, AudioFormatRequirement, AudioInput,
+    LanguageTag, ProviderOptions, SegmentId, TimeRange, TimestampLevel, Transcript,
+    TranscriptSegment,
 };
-
-/// 统一的音频输入接口。
-///
-/// 该接口屏蔽本地文件、网络资源、麦克风和其他实时来源之间的差异，
-/// 上层 ASR 只需要按照音频块顺序读取数据，而不需要了解数据的具体来源。
-///
-/// `Send` 约束用于保证输入对象的所有权可以安全地移动到异步任务或其他线程；
-/// 读取状态通过 `&mut self` 保持独占，避免多个读取者同时推进同一个输入游标。
-#[async_trait]
-pub trait AudioInput: Send {
-    /// 获取输入的格式、时长和实时性等元数据。
-    ///
-    /// 使用不可变引用是因为查询元数据不应推进输入位置；返回 `AudioInfo` 而不是
-    /// 将格式拆成多个参数，是为了让未来增加声道布局、编码要求等元数据时不改变接口。
-    async fn info(&self) -> Result<AudioInfo, CoreError>;
-
-    /// 按输入时间轴读取下一个音频块。
-    ///
-    /// `&mut self` 用于推进文件游标、网络缓冲区或实时流状态；返回 `Option` 是为了
-    /// 同时表达“读取到一个块”和“输入已经结束”，而不是把正常结束当作错误。
-    /// 音频块中携带时间戳和格式，便于 ASR、重采样器和字幕时间轴保持一致。
-    async fn next_chunk(&mut self) -> Result<Option<AudioChunk>, CoreError>;
-
-    /// 关闭输入并释放其持有的文件、网络或设备资源。
-    ///
-    /// 单独提供关闭操作，是为了让调用方在正常结束、取消或发生错误时都能执行显式清理；
-    /// 具体实现可以根据资源类型决定关闭动作，但不应再继续读取已关闭的输入。
-    async fn close(&mut self) -> Result<(), CoreError>;
-}
 
 /// 非流式 ASR 引擎接口。
 ///
@@ -85,15 +56,15 @@ pub trait StreamingAsrEngine: AsrEngine {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct StreamingAsrRequest {
     /// 源文本使用的语言；为空时由 provider 自动检测或按其默认策略处理。
-    pub source_language: Option<super::LanguageTag>,
+    pub source_language: Option<LanguageTag>,
     /// 需要生成的时间戳粒度，用于在识别精度和实时处理成本之间做选择。
-    pub timestamp_level: super::TimestampLevel,
+    pub timestamp_level: TimestampLevel,
     /// 是否要求识别并返回说话人标签；独立成开关以避免未需要时承担额外成本。
     pub enable_speaker_labels: bool,
     /// 可选的 ASR 词汇或热词提示，用于人名、术语和产品名等领域词汇。
-    pub vocabulary: Option<super::AsrVocabulary>,
+    pub vocabulary: Option<AsrVocabulary>,
     /// provider 专属的扩展配置；保留开放键值结构，避免核心接口被单一 provider 的参数绑死。
-    pub options: super::ProviderOptions,
+    pub options: ProviderOptions,
 }
 
 /// 一个已经建立的流式 ASR 会话。
@@ -141,40 +112,4 @@ pub enum AsrEvent {
         /// 该文本片段对应的音频时间范围。
         range: TimeRange,
     },
-}
-
-/// 文本翻译 provider 接口。
-///
-/// 接收带时间轴的源语言片段，并返回保持片段关联关系的目标语言结果；
-/// 这样翻译层只负责语言转换，不负责重新切分音频或猜测字幕时间。
-///
-/// `Send + Sync` 允许翻译引擎实例被多个工作任务复用，适合复用 HTTP 客户端、连接池或本地模型。
-#[async_trait]
-pub trait Translator: Send + Sync {
-    /// 翻译一批源语言片段。
-    ///
-    /// 批量请求而不是逐句调用，是为了让 provider 利用上下文和批处理能力；
-    /// `TranslationRequest` 同时携带源文本、目标语言、上下文、词典和约束，
-    /// 使不同翻译策略可以共享同一稳定接口。
-    async fn translate(
-        &self,
-        request: TranslationRequest,
-    ) -> Result<TranslatedTranscript, TranslationError>;
-}
-
-/// 字幕导出接口。
-///
-/// 负责把内部统一的 `SubtitleDocument` 序列化为 SRT、WebVTT、ASS、TTML 或其他格式。
-/// 导出器与内部字幕模型分离，使新增字幕格式时不需要修改 ASR 和翻译流程。
-///
-/// `document` 使用借用避免导出时复制或消耗完整字幕；`request` 使用值传递，
-/// 因为导出器可以取得格式、编码和排版策略的所有权并在异步过程中使用。
-#[async_trait]
-pub trait SubtitleExporter: Send + Sync {
-    /// 将统一字幕文档导出为指定格式的字节结果。
-    async fn export(
-        &self,
-        document: &SubtitleDocument,
-        request: SubtitleExportRequest,
-    ) -> Result<SubtitleOutput, ExportError>;
 }

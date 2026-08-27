@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 
 use async_trait::async_trait;
 
-use super::{
+use crate::{
     AudioChunk, AudioFormat, AudioInfo, AudioInput, CoreError, ExportError, LineBreakPolicy,
     SubtitleDocument, SubtitleExportRequest, SubtitleExporter, SubtitleFormat, SubtitleOutput,
     TextEncoding,

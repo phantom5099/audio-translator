@@ -1,10 +1,17 @@
-//! Audio translation core contracts.
-//!
-//! This crate intentionally contains the stable domain models and provider
-//! interfaces only. Network acquisition, media decoding, persistence,
-//! scheduling, playback, and model loading belong to adapters outside this
-//! core module.
+pub mod adapters;
+pub mod asr;
+pub mod audio_input;
+pub mod error;
+pub mod model;
+pub mod pipeline;
+pub mod subtitle;
+pub mod translation;
 
-pub mod core;
-
-pub use core::*;
+pub use adapters::*;
+pub use asr::*;
+pub use audio_input::*;
+pub use error::*;
+pub use model::*;
+pub use pipeline::*;
+pub use subtitle::*;
+pub use translation::*;
