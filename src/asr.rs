@@ -11,10 +11,6 @@ use crate::{
 #[async_trait]
 pub trait AsrEngine: Send + Sync {
     /// 将完整音频输入识别为带时间戳的转录结果。
-    ///
-    /// `input` 使用所有权传入，因为识别过程通常需要取得完整媒体内容；使用
-    /// `Box<dyn AudioInput>` 使调用方可以在运行时选择文件或网络来源。具体 provider
-    /// 可以把媒体字节交给自己的成熟解码流程，再执行模型推理。
     async fn transcribe(
         &self,
         input: Box<dyn AudioInput>,
