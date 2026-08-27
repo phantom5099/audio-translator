@@ -19,7 +19,7 @@ pub trait AudioTranslationService: Send + Sync {
 }
 
 pub struct AudioTranslationRequest {
-    /// 待处理的统一音频输入
+    /// 已由 audio_input 导入服务准备好的统一音频输入。
     pub input: Box<dyn AudioInput>,
     /// ASR 阶段的请求参数
     pub asr: AsrRequest,
