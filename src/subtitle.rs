@@ -6,7 +6,6 @@ use crate::error::ExportError;
 /// 字幕导出接口。
 #[async_trait]
 pub trait SubtitleExporter: Send + Sync {
-    /// 将统一字幕文档导出为指定格式的字节结果。
     async fn export(
         &self,
         document: &SubtitleDocument,
@@ -16,9 +15,7 @@ pub trait SubtitleExporter: Send + Sync {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubtitleDocument {
-    /// 源文本使用的语言。
     pub source_language: Option<crate::common::LanguageTag>,
-    /// 目标文本使用的语言。
     pub target_language: crate::common::LanguageTag,
     /// 字幕 cue 列表。
     pub cues: Vec<SubtitleCue>,
@@ -83,17 +80,11 @@ pub struct SubtitleCue {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SubtitleFormat {
-    /// SubRip 字幕格式。
     Srt,
-    /// WebVTT 字幕格式。
     WebVtt,
-    /// ASS/SSA 字幕格式，可表达更丰富的样式。
     Ass,
-    /// JSON 结构化字幕格式。
     Json,
-    /// TTML 字幕格式。
     Ttml,
-    /// 由调用方指定的自定义字幕格式。
     Custom(String),
 }
 
@@ -112,7 +103,6 @@ impl SubtitleFormat {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TextEncoding {
-    /// UTF-8 文本编码。
     Utf8,
 }
 

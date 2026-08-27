@@ -42,9 +42,7 @@ impl From<String> for LanguageTag {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TimeRange {
-    /// 时间范围的起始时间，单位为毫秒，包含该时刻。
     pub start_ms: u64,
-    /// 时间范围的结束时间，单位为毫秒，通常不包含该时刻。
     pub end_ms: u64,
 }
 
