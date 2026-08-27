@@ -1,4 +1,3 @@
-pub mod adapters;
 pub mod asr;
 pub mod audio_input;
 pub mod common;
