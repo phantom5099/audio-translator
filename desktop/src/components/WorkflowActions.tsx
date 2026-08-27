@@ -1,0 +1,2 @@
+import type { WorkflowStage } from "../types";
+export function WorkflowActions({ stage, onTranslate, onExport }: { stage: WorkflowStage; onTranslate: () => void; onExport: () => void; }) { return <div className="actions"><button className="primary-action" disabled={stage !== "parsed"} onClick={onTranslate}>开始翻译</button><button className="secondary-action" disabled={stage !== "translated"} onClick={onExport}>导出字幕文件</button></div>; }

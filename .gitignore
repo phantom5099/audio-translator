@@ -1,5 +1,10 @@
 # Rust build artifacts
 /target/
+/target-workspace-check/
+/backend/Cargo.lock
+/desktop/node_modules/
+/desktop/dist/
+/desktop/package-lock.json
 
 # Project documentation (local only)
 /docs/
