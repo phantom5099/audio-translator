@@ -3,9 +3,8 @@ use async_trait::async_trait;
 use crate::{
     audio_input::AudioInput,
     error::TranslationWorkflowError,
-    speech_translation::SpeechTranslationRequest,
+    speech_translation::{SpeechTranslationOutput, SpeechTranslationRequest},
     subtitle::{SubtitleDocument, SubtitleExportRequest, SubtitleOutput},
-    translation::TranslatedTranscript,
 };
 
 /// 音频翻译总流程接口。
@@ -29,8 +28,8 @@ pub struct AudioTranslationRequest {
 
 /// 一次完整音频翻译任务的结果。
 pub struct AudioTranslationResult {
-    /// 与文本翻译 provider 相同的翻译结果契约。
-    pub translated: TranslatedTranscript,
+    /// 语音翻译能力对外发布的结果。
+    pub speech_translation: SpeechTranslationOutput,
     /// 由转录和译文组合生成的内部字幕文档，是格式无关的中间表示
     pub subtitle: SubtitleDocument,
     /// 字幕导出的最终字节和建议文件名

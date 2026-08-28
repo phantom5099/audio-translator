@@ -3,9 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     audio_input::AudioInput,
-    common::{LanguageTag, ProviderOptions},
+    common::{LanguageTag, ProviderOptions, SegmentId, TimeRange},
     error::SpeechTranslationError,
-    translation::{TranslatedTranscript, TranslationConstraints},
 };
 
 /// 统一的语音翻译能力接口。
@@ -15,14 +14,39 @@ pub trait SpeechTranslationEngine: Send + Sync {
         &self,
         input: Box<dyn AudioInput>,
         request: SpeechTranslationRequest,
-    ) -> Result<TranslatedTranscript, SpeechTranslationError>;
+    ) -> Result<SpeechTranslationOutput, SpeechTranslationError>;
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SpeechTranslationRequest {
     pub source_language: Option<LanguageTag>,
     pub target_language: LanguageTag,
-    pub constraints: TranslationConstraints,
+    pub constraints: SpeechTranslationConstraints,
     /// Provider 专属配置由具体实现解释，避免将 ASR 或文本翻译细节暴露给 pipeline。
     pub options: ProviderOptions,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct SpeechTranslationConstraints {
+    pub preserve_numbers: bool,
+    pub preserve_placeholders: bool,
+    pub preserve_line_breaks: bool,
+    pub max_chars_per_line: Option<u32>,
+    pub allow_rewrite_source: bool,
+}
+
+/// 语音翻译能力对外发布的、与具体 ASR/翻译实现无关的结果。
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SpeechTranslationOutput {
+    pub source_language: Option<LanguageTag>,
+    pub target_language: LanguageTag,
+    pub segments: Vec<SpeechTranslationSegment>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SpeechTranslationSegment {
+    pub source_segment_id: SegmentId,
+    pub range: TimeRange,
+    pub source_text: Option<String>,
+    pub translated_text: String,
 }
