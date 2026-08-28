@@ -120,13 +120,3 @@ pub struct TranslationRequest {
     /// provider 专属的扩展配置。
     pub options: crate::common::ProviderOptions,
 }
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TranslationRequestTemplate {
-    /// 目标文本使用的语言。
-    pub target_language: crate::common::LanguageTag,
-    /// 本次翻译需要遵守的约束条件。
-    pub constraints: TranslationConstraints,
-    /// provider 专属的扩展配置。
-    pub options: crate::common::ProviderOptions,
-}

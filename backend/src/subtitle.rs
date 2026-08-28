@@ -22,13 +22,11 @@ pub struct SubtitleDocument {
 }
 
 impl SubtitleDocument {
-    pub fn from_translation(
-        transcript: &crate::asr::Transcript,
-        translated: &crate::translation::TranslatedTranscript,
+    pub fn from_timed_translation(
+        translated: &crate::speech_translation::SpeechTranslationOutput,
     ) -> Result<Self, crate::error::CoreError> {
-        translated.validate_against(transcript)?;
         Ok(Self {
-            source_language: transcript.language.clone(),
+            source_language: translated.source_language.clone(),
             target_language: translated.target_language.clone(),
             cues: translated
                 .segments
