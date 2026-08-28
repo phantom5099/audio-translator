@@ -1,4 +1,4 @@
-import type { TranslatorApi } from "./api";
+import type { AudioInputApi, TranslatorApi } from "./api";
 import type { ExportResult, ImportResult, TranslateResult } from "../types";
 
 const wait = (milliseconds: number) =>
@@ -7,7 +7,7 @@ const wait = (milliseconds: number) =>
 const makeId = (prefix: string) =>
   `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 
-export const mockApi: TranslatorApi = {
+export const mockAudioInputApi: AudioInputApi = {
   async importVideo(file): Promise<ImportResult> {
     await wait(1600);
     return {
@@ -19,7 +19,9 @@ export const mockApi: TranslatorApi = {
       },
     };
   },
+};
 
+export const mockTranslatorApi: TranslatorApi = {
   async translate(_taskId): Promise<TranslateResult> {
     await wait(2200);
     return { subtitleId: makeId("subtitle"), cueCount: 18 };
