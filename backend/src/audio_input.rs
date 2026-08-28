@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use crate::error::CoreError;
 
-/// 音频导入的来源类型。
 pub enum AudioInputSource {
     /// 本地媒体文件。
     LocalFile(PathBuf),
@@ -14,8 +13,6 @@ pub enum AudioInputSource {
 }
 
 /// 音频导入服务接口。
-///
-/// 导入服务负责将不同来源转换为可交给 ASR 的统一输入；pipeline 不负责创建输入。
 #[async_trait]
 pub trait AudioInputService: Send + Sync {
     async fn import(&self, source: AudioInputSource) -> Result<Box<dyn AudioInput>, CoreError>;

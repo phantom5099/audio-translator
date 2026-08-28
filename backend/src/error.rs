@@ -33,6 +33,14 @@ pub enum TranslationError {
 }
 
 #[derive(Debug, Error)]
+pub enum SpeechTranslationError {
+    #[error(transparent)]
+    Core(#[from] CoreError),
+    #[error("speech translation provider `{provider}` failed: {message}")]
+    Provider { provider: String, message: String },
+}
+
+#[derive(Debug, Error)]
 pub enum ExportError {
     #[error(transparent)]
     Core(#[from] CoreError),
@@ -42,6 +50,8 @@ pub enum ExportError {
 
 #[derive(Debug, Error)]
 pub enum TranslationWorkflowError {
+    #[error("speech translation stage failed: {0}")]
+    SpeechTranslation(#[source] SpeechTranslationError),
     #[error("ASR stage failed: {0}")]
     Asr(#[source] AsrError),
     #[error("translation stage failed: {0}")]
@@ -50,6 +60,12 @@ pub enum TranslationWorkflowError {
     Export(#[source] ExportError),
     #[error(transparent)]
     Core(#[from] CoreError),
+}
+
+impl From<SpeechTranslationError> for TranslationWorkflowError {
+    fn from(value: SpeechTranslationError) -> Self {
+        Self::SpeechTranslation(value)
+    }
 }
 
 impl From<AsrError> for TranslationWorkflowError {
