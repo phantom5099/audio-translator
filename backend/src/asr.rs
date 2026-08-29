@@ -6,6 +6,9 @@ use crate::{
     error::{AsrError, CoreError},
 };
 
+mod faster_whisper;
+pub use faster_whisper::FasterWhisperAsrEngine;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AsrRequest {
     pub source_language: Option<LanguageTag>,

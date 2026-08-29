@@ -6,6 +6,9 @@ use crate::{
     error::{CoreError, ExportError},
 };
 
+mod srt;
+pub use srt::SrtSubtitleExporter;
+
 /// 字幕导出接口。
 #[async_trait]
 pub trait SubtitleExporter: Send + Sync {
