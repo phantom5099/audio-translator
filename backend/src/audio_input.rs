@@ -1,29 +1,44 @@
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::error::CoreError;
 
-pub enum AudioInputSource {
-    /// 本地媒体文件。
-    LocalFile(PathBuf),
-    /// 网络媒体地址。
-    Url(String),
-    /// 已建立的流式输入。
-    Stream(Box<dyn AudioInput>),
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AudioMetadata {
+    pub title: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub media_type: Option<String>,
+    pub size_bytes: Option<u64>,
+    pub cover: Option<CoverImage>,
 }
 
-/// 音频导入服务接口。
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CoverImage {
+    pub media_type: String,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AudioAsset {
+    pub path: PathBuf,
+    pub origin: AudioAssetOrigin,
+    pub metadata: AudioMetadata,
+}
+
+/// Safe source metadata for API responses; backend storage paths stay private.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum AudioAssetOrigin {
+    LocalFile { file_name: String },
+    Url { url: String },
+}
+
+pub enum AudioInputSource {
+    LocalFile(PathBuf),
+    Url(String),
+}
+
 #[async_trait]
 pub trait AudioInputService: Send + Sync {
-    async fn import(&self, source: AudioInputSource) -> Result<Box<dyn AudioInput>, CoreError>;
-}
-
-/// 统一的音频输入接口。
-#[async_trait]
-pub trait AudioInput: Send {
-    /// 读取完整的音频媒体字节。
-    async fn read_all(&mut self) -> Result<Vec<u8>, CoreError>;
-
-    /// 关闭输入并释放其持有的文件或网络资源。
-    async fn close(&mut self) -> Result<(), CoreError>;
+    async fn import(&self, source: AudioInputSource) -> Result<AudioAsset, CoreError>;
 }
