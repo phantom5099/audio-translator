@@ -11,7 +11,7 @@ pub trait AudioImportService: Send + Sync {
     async fn import(
         &self,
         source: audio_input::AudioInputSource,
-    ) -> Result<audio_input::AudioAsset, error::WebError>;
+    ) -> Result<audio_input::AudioAsset, error::ApplicationError>;
 }
 
 pub struct AudioImportApplicationService {
@@ -29,11 +29,11 @@ impl AudioImportService for AudioImportApplicationService {
     async fn import(
         &self,
         source: audio_input::AudioInputSource,
-    ) -> Result<audio_input::AudioAsset, error::WebError> {
+    ) -> Result<audio_input::AudioAsset, error::ApplicationError> {
         self.audio_input
             .import(source)
             .await
-            .map_err(error::WebError::AudioInput)
+            .map_err(error::ApplicationError::AudioInput)
     }
 }
 
@@ -47,7 +47,7 @@ pub trait SpeechTranslationService: Send + Sync {
         &self,
         path: PathBuf,
         request: speech_translation::SpeechTranslationRequest,
-    ) -> Result<SpeechTranslationId, error::WebError>;
+    ) -> Result<SpeechTranslationId, error::ApplicationError>;
 }
 
 pub struct SpeechTranslationApplicationService {
@@ -89,7 +89,7 @@ impl SpeechTranslationService for SpeechTranslationApplicationService {
         &self,
         path: PathBuf,
         request: speech_translation::SpeechTranslationRequest,
-    ) -> Result<SpeechTranslationId, error::WebError> {
+    ) -> Result<SpeechTranslationId, error::ApplicationError> {
         let output = self
             .engine
             .translate_audio(Box::new(PathSpeechInput { path }), request)
@@ -107,7 +107,7 @@ pub trait SubtitleExportService: Send + Sync {
         &self,
         translation_id: SpeechTranslationId,
         request: subtitle::SubtitleExportRequest,
-    ) -> Result<subtitle::SubtitleOutput, error::WebError>;
+    ) -> Result<subtitle::SubtitleOutput, error::ApplicationError>;
 }
 
 pub struct SubtitleExportApplicationService {
@@ -127,7 +127,7 @@ impl SubtitleExportService for SubtitleExportApplicationService {
         &self,
         translation_id: SpeechTranslationId,
         request: subtitle::SubtitleExportRequest,
-    ) -> Result<subtitle::SubtitleOutput, error::WebError> {
+    ) -> Result<subtitle::SubtitleOutput, error::ApplicationError> {
         let output = self.store.load(translation_id)?;
         let cues = output
             .segments
@@ -148,7 +148,7 @@ impl SubtitleExportService for SubtitleExportApplicationService {
         self.exporter
             .export(&document, request)
             .await
-            .map_err(error::WebError::from)
+            .map_err(error::ApplicationError::from)
     }
 }
 
@@ -166,20 +166,20 @@ impl TranslationStore {
         &self,
         id: SpeechTranslationId,
         output: &speech_translation::SpeechTranslationOutput,
-    ) -> Result<(), error::WebError> {
+    ) -> Result<(), error::ApplicationError> {
         std::fs::create_dir_all(&self.root).map_err(|error| {
-            error::WebError::Core(error::CoreError::Provider {
+            error::ApplicationError::Core(error::CoreError::Provider {
                 provider: "translation-store".to_owned(),
                 message: format!("cannot create translation directory: {error}"),
             })
         })?;
         let bytes = serde_json::to_vec(output).map_err(|error| {
-            error::WebError::Core(error::CoreError::InvalidResult(format!(
+            error::ApplicationError::Core(error::CoreError::InvalidResult(format!(
                 "cannot encode speech translation: {error}"
             )))
         })?;
         std::fs::write(self.path(id), bytes).map_err(|error| {
-            error::WebError::Core(error::CoreError::Provider {
+            error::ApplicationError::Core(error::CoreError::Provider {
                 provider: "translation-store".to_owned(),
                 message: format!("cannot persist speech translation: {error}"),
             })
@@ -190,14 +190,14 @@ impl TranslationStore {
     fn load(
         &self,
         id: SpeechTranslationId,
-    ) -> Result<speech_translation::SpeechTranslationOutput, error::WebError> {
+    ) -> Result<speech_translation::SpeechTranslationOutput, error::ApplicationError> {
         let bytes = std::fs::read(self.path(id)).map_err(|_| {
-            error::WebError::Core(error::CoreError::InvalidInput(format!(
+            error::ApplicationError::Core(error::CoreError::InvalidInput(format!(
                 "speech translation {id:?} was not found"
             )))
         })?;
         serde_json::from_slice(&bytes).map_err(|error| {
-            error::WebError::Core(error::CoreError::InvalidResult(format!(
+            error::ApplicationError::Core(error::CoreError::InvalidResult(format!(
                 "invalid speech translation {id:?}: {error}"
             )))
         })

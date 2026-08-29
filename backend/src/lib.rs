@@ -1,3 +1,4 @@
+pub mod application;
 pub mod asr;
 pub mod audio_input;
 pub mod common;
@@ -5,4 +6,3 @@ pub mod error;
 pub mod speech_translation;
 pub mod subtitle;
 pub mod translation;
-pub mod web;

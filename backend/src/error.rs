@@ -65,7 +65,7 @@ pub enum ExportError {
 }
 
 #[derive(Debug, Error)]
-pub enum WebError {
+pub enum ApplicationError {
     #[error("audio input stage failed: {0}")]
     AudioInput(#[source] CoreError),
     #[error("speech translation stage failed: {0}")]
@@ -76,13 +76,13 @@ pub enum WebError {
     Core(#[from] CoreError),
 }
 
-impl From<SpeechTranslationError> for WebError {
+impl From<SpeechTranslationError> for ApplicationError {
     fn from(value: SpeechTranslationError) -> Self {
         Self::SpeechTranslation(value)
     }
 }
 
-impl From<ExportError> for WebError {
+impl From<ExportError> for ApplicationError {
     fn from(value: ExportError) -> Self {
         Self::SubtitleExport(value)
     }

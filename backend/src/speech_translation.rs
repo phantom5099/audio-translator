@@ -30,7 +30,7 @@ pub struct SpeechTranslationRequest {
     pub source_language: Option<common::LanguageTag>,
     pub target_language: common::LanguageTag,
     pub constraints: SpeechTranslationConstraints,
-    /// Provider 专属配置由具体实现解释，避免将 ASR 或文本翻译细节暴露给 web 层。
+    /// Provider 专属配置由具体实现解释，避免将 ASR 或文本翻译细节暴露给应用层。
     pub options: common::ProviderOptions,
 }
 
