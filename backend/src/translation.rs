@@ -3,6 +3,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::TranslationError;
 
+mod argos;
+pub use argos::ArgosTranslator;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TranslationSegment {
+    pub id: crate::common::SegmentId,
+    pub range: crate::common::TimeRange,
+    pub text: String,
+}
+
 /// 文本翻译 provider 接口。
 #[async_trait]
 pub trait Translator: Send + Sync {
@@ -26,21 +36,21 @@ pub struct TranslatedTranscript {
 impl TranslatedTranscript {
     pub fn validate_against(
         &self,
-        source: &crate::asr::Transcript,
+        source: &[TranslationSegment],
     ) -> Result<(), crate::error::CoreError> {
         if self.target_language.as_str().trim().is_empty() {
             return Err(crate::error::CoreError::InvalidResult(
                 "translated transcript target language is empty".to_owned(),
             ));
         }
-        if self.segments.len() != source.segments.len() {
+        if self.segments.len() != source.len() {
             return Err(crate::error::CoreError::InvalidResult(format!(
                 "translation returned {} segments for {} source segments",
                 self.segments.len(),
-                source.segments.len()
+                source.len()
             )));
         }
-        for (source_segment, translated_segment) in source.segments.iter().zip(&self.segments) {
+        for (source_segment, translated_segment) in source.iter().zip(&self.segments) {
             if translated_segment.source_segment_id != source_segment.id {
                 return Err(crate::error::CoreError::InvalidResult(format!(
                     "translated segment does not match source segment {}",
@@ -114,7 +124,7 @@ pub struct TranslationRequest {
     /// 目标文本使用的语言。
     pub target_language: crate::common::LanguageTag,
     /// 按时间顺序排列的文本片段列表。
-    pub segments: Vec<crate::asr::TranscriptSegment>,
+    pub segments: Vec<TranslationSegment>,
     /// 本次翻译需要遵守的约束条件。
     pub constraints: TranslationConstraints,
     /// provider 专属的扩展配置。

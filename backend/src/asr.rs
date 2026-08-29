@@ -2,10 +2,19 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    audio_input::AudioInput,
     common::{LanguageTag, ProviderOptions},
     error::AsrError,
 };
+
+mod faster_whisper;
+pub use faster_whisper::FasterWhisperAsrEngine;
+
+#[async_trait]
+pub trait AsrInput: Send {
+    async fn read_all(&mut self) -> Result<Vec<u8>, crate::error::CoreError>;
+
+    async fn close(&mut self) -> Result<(), crate::error::CoreError>;
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AsrRequest {
@@ -19,7 +28,7 @@ pub trait AsrEngine: Send + Sync {
     /// 将完整音频输入识别为带时间戳的转录结果。
     async fn transcribe(
         &self,
-        input: Box<dyn AudioInput>,
+        input: Box<dyn AsrInput>,
         request: AsrRequest,
     ) -> Result<Transcript, AsrError>;
 }
