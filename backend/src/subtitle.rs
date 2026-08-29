@@ -22,23 +22,16 @@ pub struct SubtitleDocument {
 }
 
 impl SubtitleDocument {
-    pub fn from_timed_translation(
-        translated: &crate::speech_translation::SpeechTranslationOutput,
-    ) -> Result<Self, crate::error::CoreError> {
-        Ok(Self {
-            source_language: translated.source_language.clone(),
-            target_language: translated.target_language.clone(),
-            cues: translated
-                .segments
-                .iter()
-                .map(|segment| SubtitleCue {
-                    id: uuid::Uuid::new_v4(),
-                    source_segment_id: segment.source_segment_id,
-                    range: segment.range,
-                    text: segment.translated_text.clone(),
-                })
-                .collect(),
-        })
+    pub fn from_cues(
+        source_language: Option<crate::common::LanguageTag>,
+        target_language: crate::common::LanguageTag,
+        cues: Vec<SubtitleCue>,
+    ) -> Self {
+        Self {
+            source_language,
+            target_language,
+            cues,
+        }
     }
 
     pub fn validate(&self) -> Result<(), crate::error::CoreError> {
