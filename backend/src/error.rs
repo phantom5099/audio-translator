@@ -63,27 +63,3 @@ pub enum ExportError {
     #[error("subtitle format `{0}` is not supported")]
     UnsupportedFormat(String),
 }
-
-#[derive(Debug, Error)]
-pub enum ApplicationError {
-    #[error("audio input stage failed: {0}")]
-    AudioInput(#[source] CoreError),
-    #[error("speech translation stage failed: {0}")]
-    SpeechTranslation(#[source] SpeechTranslationError),
-    #[error("subtitle export stage failed: {0}")]
-    SubtitleExport(#[source] ExportError),
-    #[error(transparent)]
-    Core(#[from] CoreError),
-}
-
-impl From<SpeechTranslationError> for ApplicationError {
-    fn from(value: SpeechTranslationError) -> Self {
-        Self::SpeechTranslation(value)
-    }
-}
-
-impl From<ExportError> for ApplicationError {
-    fn from(value: ExportError) -> Self {
-        Self::SubtitleExport(value)
-    }
-}

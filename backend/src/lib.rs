@@ -1,4 +1,3 @@
-pub mod application;
 pub mod asr;
 pub mod audio_input;
 pub mod common;
