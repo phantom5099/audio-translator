@@ -1,81 +1,16 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
 use uuid::Uuid;
 
 use crate::{common, error};
 
-/// 持久化后的语音翻译结果标识。
+/// 当前应用进程中的语音翻译结果标识。
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct SpeechTranslationId(pub Uuid);
 
-/// 语音翻译结果的持久化端口。
-#[async_trait]
-pub trait SpeechTranslationRepository: Send + Sync {
-    async fn save(
-        &self,
-        output: SpeechTranslationOutput,
-    ) -> Result<SpeechTranslationId, error::CoreError>;
-
-    async fn load(
-        &self,
-        id: SpeechTranslationId,
-    ) -> Result<SpeechTranslationOutput, error::CoreError>;
-}
-
-/// 基于 JSON 文件的本地语音翻译结果存储。
-#[derive(Clone)]
-pub struct FileSpeechTranslationRepository {
-    root: PathBuf,
-}
-
-impl FileSpeechTranslationRepository {
-    pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
-    }
-
-    fn path(&self, id: SpeechTranslationId) -> PathBuf {
-        self.root.join(format!("{}.json", id.0))
-    }
-}
-
-impl Default for FileSpeechTranslationRepository {
-    fn default() -> Self {
-        Self::new(std::env::temp_dir().join("audio-translator-translations"))
-    }
-}
-
-#[async_trait]
-impl SpeechTranslationRepository for FileSpeechTranslationRepository {
-    async fn save(
-        &self,
-        output: SpeechTranslationOutput,
-    ) -> Result<SpeechTranslationId, error::CoreError> {
-        fs::create_dir_all(&self.root).map_err(|error| error::CoreError::Provider {
-            provider: "speech-translation-store".to_owned(),
-            message: format!("cannot create translation directory: {error}"),
-        })?;
-        let id = SpeechTranslationId(Uuid::new_v4());
-        let bytes = serde_json::to_vec(&output).map_err(|error| {
-            error::CoreError::InvalidResult(format!("cannot encode speech translation: {error}"))
-        })?;
-        fs::write(self.path(id), bytes).map_err(|error| error::CoreError::Provider {
-            provider: "speech-translation-store".to_owned(),
-            message: format!("cannot persist speech translation: {error}"),
-        })?;
-        Ok(id)
-    }
-
-    async fn load(
-        &self,
-        id: SpeechTranslationId,
-    ) -> Result<SpeechTranslationOutput, error::CoreError> {
-        let bytes = fs::read(self.path(id)).map_err(|_| {
-            error::CoreError::InvalidInput(format!("speech translation {id:?} was not found"))
-        })?;
-        serde_json::from_slice(&bytes).map_err(|error| {
-            error::CoreError::InvalidResult(format!("invalid speech translation {id:?}: {error}"))
-        })
+impl SpeechTranslationId {
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
     }
 }
 

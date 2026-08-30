@@ -1,8 +1,19 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use uuid::Uuid;
 
 use crate::error::CoreError;
+
+/// 导入媒体在当前应用进程中的稳定标识。
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+pub struct AudioAssetId(pub Uuid);
+
+impl AudioAssetId {
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AudioMetadata {
@@ -21,6 +32,7 @@ pub struct CoverImage {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AudioAsset {
+    pub id: AudioAssetId,
     pub path: PathBuf,
     pub origin: AudioAssetOrigin,
     pub metadata: AudioMetadata,
@@ -33,6 +45,7 @@ pub enum AudioAssetOrigin {
     Url { url: String },
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum AudioInputSource {
     LocalFile(PathBuf),
     Url(String),
