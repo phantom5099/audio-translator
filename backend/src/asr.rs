@@ -2,21 +2,9 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    common::{LanguageTag, ProviderOptions},
-    error::AsrError,
+    common::{LanguageTag, ProviderOptions, TimeRange},
+    error::{AsrError, CoreError},
 };
-
-#[async_trait]
-pub trait AsrInput: Send {
-    async fn content(&mut self) -> Result<AsrInputContent, crate::error::CoreError>;
-
-    async fn close(&mut self) -> Result<(), crate::error::CoreError>;
-}
-
-pub enum AsrInputContent {
-    File(std::path::PathBuf),
-    Bytes(Vec<u8>),
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AsrRequest {
@@ -30,7 +18,7 @@ pub trait AsrEngine: Send + Sync {
     /// 将完整音频输入识别为带时间戳的转录结果。
     async fn transcribe(
         &self,
-        input: Box<dyn AsrInput>,
+        path: std::path::PathBuf,
         request: AsrRequest,
     ) -> Result<Transcript, AsrError>;
 }
@@ -42,13 +30,12 @@ pub struct Transcript {
 }
 
 impl Transcript {
-    pub fn validate(&self) -> Result<(), crate::error::CoreError> {
-        for segment in &self.segments {
+    pub fn validate(&self) -> Result<(), CoreError> {
+        for (index, segment) in self.segments.iter().enumerate() {
             segment.range.validate()?;
             if segment.text.trim().is_empty() {
-                return Err(crate::error::CoreError::InvalidResult(format!(
-                    "transcript segment {} has empty text",
-                    segment.id
+                return Err(CoreError::InvalidResult(format!(
+                    "transcript segment {index} has empty text",
                 )));
             }
         }
@@ -58,7 +45,6 @@ impl Transcript {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TranscriptSegment {
-    pub id: crate::common::SegmentId,
-    pub range: crate::common::TimeRange,
+    pub range: TimeRange,
     pub text: String,
 }

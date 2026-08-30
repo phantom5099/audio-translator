@@ -34,15 +34,8 @@ pub struct CoverImage {
 pub struct AudioAsset {
     pub id: AudioAssetId,
     pub path: PathBuf,
-    pub origin: AudioAssetOrigin,
+    pub file_name: String,
     pub metadata: AudioMetadata,
-}
-
-/// Safe source metadata for API responses; backend storage paths stay private.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum AudioAssetOrigin {
-    LocalFile { file_name: String },
-    Url { url: String },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
