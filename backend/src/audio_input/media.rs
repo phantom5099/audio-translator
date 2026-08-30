@@ -4,7 +4,8 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 use super::{
-    AudioAsset, AudioAssetOrigin, AudioInputService, AudioInputSource, AudioMetadata, CoverImage,
+    AudioAsset, AudioAssetId, AudioAssetOrigin, AudioInputService, AudioInputSource, AudioMetadata,
+    CoverImage,
 };
 use crate::error::CoreError;
 
@@ -90,6 +91,7 @@ impl AudioInputService for MediaAudioInputService {
             }
         };
         let asset = AudioAsset {
+            id: AudioAssetId::new(),
             path,
             origin,
             metadata,

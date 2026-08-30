@@ -103,6 +103,9 @@ dependencies = [
 name = "audio-translator-desktop"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "audio-translator",
+ "serde",
  "tauri",
  "tauri-build",
 ]
