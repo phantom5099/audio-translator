@@ -1,11 +1,11 @@
 use async_trait::async_trait;
 use serde::Deserialize;
-use std::{path::PathBuf, process::Command};
+use std::process::Command;
 
-use super::{AsrEngine, AsrInput, AsrInputContent, AsrRequest, Transcript, TranscriptSegment};
+use super::{AsrEngine, AsrRequest, Transcript, TranscriptSegment};
 use crate::{
     common::{LanguageTag, TimeRange},
-    error::{AsrError, CoreError},
+    error::AsrError,
 };
 
 pub struct FasterWhisperAsrEngine {
@@ -31,39 +31,21 @@ impl FasterWhisperAsrEngine {
 impl AsrEngine for FasterWhisperAsrEngine {
     async fn transcribe(
         &self,
-        mut input: Box<dyn AsrInput>,
+        path: std::path::PathBuf,
         request: AsrRequest,
     ) -> Result<Transcript, AsrError> {
-        let content = input.content().await?;
-        input.close().await?;
-        let (path, remove_after) = match content {
-            AsrInputContent::File(path) => (path, false),
-            AsrInputContent::Bytes(bytes) => {
-                let path = temporary_media_path();
-                std::fs::write(&path, bytes).map_err(|error| {
-                    AsrError::Core(CoreError::Provider {
-                        provider: "faster-whisper".to_owned(),
-                        message: format!("cannot create temporary media file: {error}"),
-                    })
-                })?;
-                (path, true)
-            }
-        };
         let language = request.source_language.map(|value| language_code(&value));
         let output = Command::new(&self.python)
             .arg("-c")
             .arg(FASTER_WHISPER_WORKER)
             .arg(&self.model)
             .arg(language.as_deref().unwrap_or(""))
-            .arg(&path)
+            .arg(path)
             .output()
             .map_err(|error| AsrError::Provider {
                 provider: "faster-whisper".to_owned(),
                 message: format!("failed to start {}: {error}", self.python),
             });
-        if remove_after {
-            let _ = std::fs::remove_file(&path);
-        }
         let output = output?;
         if !output.status.success() {
             return Err(AsrError::Provider {
@@ -81,7 +63,6 @@ impl AsrEngine for FasterWhisperAsrEngine {
             .into_iter()
             .map(|segment| {
                 Ok(TranscriptSegment {
-                    id: uuid::Uuid::new_v4(),
                     range: TimeRange::new(seconds_to_ms(segment.start), seconds_to_ms(segment.end))
                         .map_err(AsrError::Core)?,
                     text: segment.text.trim().to_owned(),
@@ -108,10 +89,6 @@ struct FasterWhisperSegment {
     start: f64,
     end: f64,
     text: String,
-}
-
-fn temporary_media_path() -> PathBuf {
-    std::env::temp_dir().join(format!("audio-translator-{}.media", uuid::Uuid::new_v4()))
 }
 
 fn seconds_to_ms(seconds: f64) -> u64 {

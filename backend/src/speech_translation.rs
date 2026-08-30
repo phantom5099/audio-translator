@@ -19,16 +19,6 @@ impl SpeechTranslationId {
     }
 }
 
-/// 当前应用进程中的语音翻译结果标识。
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
-pub struct SpeechTranslationId(pub Uuid);
-
-impl SpeechTranslationId {
-    pub fn new() -> Self {
-        Self(Uuid::new_v4())
-    }
-}
-
 /// 统一的语音翻译能力接口。
 #[async_trait]
 pub trait SpeechTranslationEngine: Send + Sync {

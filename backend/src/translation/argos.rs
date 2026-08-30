@@ -88,6 +88,6 @@ source = (request.get("source_language") or "").replace("_", "-").split("-")[0]
 target = request["target_language"].replace("_", "-").split("-")[0]
 segments = []
 for item in request["segments"]:
-    segments.append({"source_segment_id": item["id"], "range": item["range"], "source_text": item["text"], "translated_text": translate.translate(item["text"], source, target), "warnings": []})
+    segments.append({"range": item["range"], "source_text": item["text"], "translated_text": translate.translate(item["text"], source, target), "warnings": []})
 print(json.dumps({"source_language": request.get("source_language"), "target_language": request["target_language"], "segments": segments}, ensure_ascii=False))
 "#;

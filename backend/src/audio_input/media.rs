@@ -4,8 +4,7 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 use super::{
-    AudioAsset, AudioAssetId, AudioAssetOrigin, AudioInputService, AudioInputSource, AudioMetadata,
-    CoverImage,
+    AudioAsset, AudioAssetId, AudioInputService, AudioInputSource, AudioMetadata, CoverImage,
 };
 use crate::error::CoreError;
 
@@ -29,7 +28,7 @@ impl Default for MediaAudioInputService {
 #[async_trait]
 impl AudioInputService for MediaAudioInputService {
     async fn import(&self, source: AudioInputSource) -> Result<AudioAsset, CoreError> {
-        let (path, origin, metadata) = match source {
+        let (path, file_name, metadata) = match source {
             AudioInputSource::LocalFile(path) => {
                 validate_file(&path)?;
                 let metadata = probe_media(&path)?;
@@ -42,11 +41,7 @@ impl AudioInputService for MediaAudioInputService {
                             path.display()
                         ))
                     })?;
-                (
-                    path.clone(),
-                    AudioAssetOrigin::LocalFile { file_name },
-                    metadata,
-                )
+                (path.clone(), file_name, metadata)
             }
             AudioInputSource::Url(url) => {
                 std::fs::create_dir_all(&self.root).map_err(|error| CoreError::Provider {
@@ -87,13 +82,19 @@ impl AudioInputService for MediaAudioInputService {
                 })?;
                 let mut metadata = probe_media(&path)?;
                 metadata.size_bytes = Some(bytes.len() as u64);
-                (path, AudioAssetOrigin::Url { url }, metadata)
+                let file_name = path
+                    .file_name()
+                    .map(|value| value.to_string_lossy().into_owned())
+                    .ok_or_else(|| {
+                        CoreError::InvalidInput("downloaded media has no file name".to_owned())
+                    })?;
+                (path, file_name, metadata)
             }
         };
         let asset = AudioAsset {
             id: AudioAssetId::new(),
             path,
-            origin,
+            file_name,
             metadata,
         };
         Ok(asset)

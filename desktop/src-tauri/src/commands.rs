@@ -1,42 +1,23 @@
-use async_trait::async_trait;
 use audio_translator::{
-    audio_input::{AudioAssetId, AudioInputService, AudioInputSource},
+    audio_input::{AudioAssetId, AudioInputService, AudioInputSource, AudioMetadata},
     speech_translation::{
-        SpeechTranslationEngine, SpeechTranslationId, SpeechTranslationInput,
-        SpeechTranslationInputContent, SpeechTranslationOutput, SpeechTranslationRequest,
+        SpeechTranslationEngine, SpeechTranslationId, SpeechTranslationOutput,
+        SpeechTranslationRequest,
     },
     subtitle::{
         SubtitleCue, SubtitleDocument, SubtitleExportRequest, SubtitleExporter, SubtitleOutput,
     },
 };
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use tauri::State;
 
 use crate::state::AppState;
 
-struct FileSpeechInput {
-    path: PathBuf,
-}
-
-#[async_trait]
-impl SpeechTranslationInput for FileSpeechInput {
-    async fn content(
-        &mut self,
-    ) -> Result<SpeechTranslationInputContent, audio_translator::error::CoreError> {
-        Ok(SpeechTranslationInputContent::File(self.path.clone()))
-    }
-
-    async fn close(&mut self) -> Result<(), audio_translator::error::CoreError> {
-        Ok(())
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AudioAssetResponse {
     pub id: AudioAssetId,
-    pub origin: audio_translator::audio_input::AudioAssetOrigin,
-    pub metadata: audio_translator::audio_input::AudioMetadata,
+    pub file_name: String,
+    pub metadata: AudioMetadata,
 }
 
 #[tauri::command]
@@ -56,7 +37,7 @@ pub async fn import_audio(
         .insert(asset.id, asset.path.clone());
     Ok(AudioAssetResponse {
         id: asset.id,
-        origin: asset.origin,
+        file_name: asset.file_name,
         metadata: asset.metadata,
     })
 }
@@ -76,7 +57,7 @@ pub async fn start_translation(
         .ok_or_else(|| format!("audio asset {asset_id:?} was not found"))?;
     let output = state
         .speech_engine
-        .translate_audio(Box::new(FileSpeechInput { path }), request)
+        .translate_audio(path, request)
         .await
         .map_err(|error| error.to_string())?;
     let id = SpeechTranslationId::new();
@@ -114,8 +95,6 @@ fn subtitle_document(output: SpeechTranslationOutput) -> SubtitleDocument {
         .segments
         .into_iter()
         .map(|segment| SubtitleCue {
-            id: segment.source_segment_id,
-            source_segment_id: segment.source_segment_id,
             range: segment.range,
             text: segment.translated_text,
         })
