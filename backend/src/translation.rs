@@ -1,7 +1,16 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::error::TranslationError;
+use crate::{
+    common::{LanguageTag, ProviderOptions, TimeRange},
+    error::{CoreError, TranslationError},
+};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TranslationSegment {
+    pub range: TimeRange,
+    pub text: String,
+}
 
 /// 文本翻译 provider 接口。
 #[async_trait]
@@ -16,53 +25,43 @@ pub trait Translator: Send + Sync {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TranslatedTranscript {
     /// 源文本使用的语言。
-    pub source_language: Option<crate::common::LanguageTag>,
+    pub source_language: Option<LanguageTag>,
     /// 目标文本使用的语言。
-    pub target_language: crate::common::LanguageTag,
+    pub target_language: LanguageTag,
     /// 按时间顺序排列的文本片段列表。
     pub segments: Vec<TranslatedSegment>,
 }
 
 impl TranslatedTranscript {
-    pub fn validate_against(
-        &self,
-        source: &crate::asr::Transcript,
-    ) -> Result<(), crate::error::CoreError> {
+    pub fn validate_against(&self, source: &[TranslationSegment]) -> Result<(), CoreError> {
         if self.target_language.as_str().trim().is_empty() {
-            return Err(crate::error::CoreError::InvalidResult(
+            return Err(CoreError::InvalidResult(
                 "translated transcript target language is empty".to_owned(),
             ));
         }
-        if self.segments.len() != source.segments.len() {
-            return Err(crate::error::CoreError::InvalidResult(format!(
+        if self.segments.len() != source.len() {
+            return Err(CoreError::InvalidResult(format!(
                 "translation returned {} segments for {} source segments",
                 self.segments.len(),
-                source.segments.len()
+                source.len()
             )));
         }
-        for (source_segment, translated_segment) in source.segments.iter().zip(&self.segments) {
-            if translated_segment.source_segment_id != source_segment.id {
-                return Err(crate::error::CoreError::InvalidResult(format!(
-                    "translated segment does not match source segment {}",
-                    source_segment.id
-                )));
-            }
+        for (index, (source_segment, translated_segment)) in
+            source.iter().zip(&self.segments).enumerate()
+        {
             if translated_segment.range != source_segment.range {
-                return Err(crate::error::CoreError::InvalidResult(format!(
-                    "translated segment {} changed its time range",
-                    source_segment.id
+                return Err(CoreError::InvalidResult(format!(
+                    "translated segment at index {index} changed its time range",
                 )));
             }
             if translated_segment.source_text != source_segment.text {
-                return Err(crate::error::CoreError::InvalidResult(format!(
-                    "translated segment {} changed its source text",
-                    source_segment.id
+                return Err(CoreError::InvalidResult(format!(
+                    "translated segment at index {index} changed its source text",
                 )));
             }
             if translated_segment.translated_text.trim().is_empty() {
-                return Err(crate::error::CoreError::InvalidResult(format!(
-                    "translated segment {} has empty translated text",
-                    source_segment.id
+                return Err(CoreError::InvalidResult(format!(
+                    "translated segment at index {index} has empty translated text",
                 )));
             }
         }
@@ -72,10 +71,8 @@ impl TranslatedTranscript {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TranslatedSegment {
-    /// 对应源文本片段的稳定唯一标识。
-    pub source_segment_id: crate::common::SegmentId,
     /// 该文本片段对应的音频时间范围。
-    pub range: crate::common::TimeRange,
+    pub range: TimeRange,
     /// 翻译前的源文本。
     pub source_text: String,
     /// 翻译后的目标文本。
@@ -110,23 +107,13 @@ pub struct TranslationConstraints {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TranslationRequest {
     /// 源文本使用的语言。
-    pub source_language: Option<crate::common::LanguageTag>,
+    pub source_language: Option<LanguageTag>,
     /// 目标文本使用的语言。
-    pub target_language: crate::common::LanguageTag,
+    pub target_language: LanguageTag,
     /// 按时间顺序排列的文本片段列表。
-    pub segments: Vec<crate::asr::TranscriptSegment>,
+    pub segments: Vec<TranslationSegment>,
     /// 本次翻译需要遵守的约束条件。
     pub constraints: TranslationConstraints,
     /// provider 专属的扩展配置。
-    pub options: crate::common::ProviderOptions,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TranslationRequestTemplate {
-    /// 目标文本使用的语言。
-    pub target_language: crate::common::LanguageTag,
-    /// 本次翻译需要遵守的约束条件。
-    pub constraints: TranslationConstraints,
-    /// provider 专属的扩展配置。
-    pub options: crate::common::ProviderOptions,
+    pub options: ProviderOptions,
 }

@@ -4,11 +4,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::CoreError;
 
-/// 转录片段的稳定唯一标识。
-pub type SegmentId = uuid::Uuid;
-/// 字幕 cue 的稳定唯一标识。
-pub type CueId = uuid::Uuid;
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct LanguageTag(#[doc = "语言标签的实际字符串值，例如 zh-CN、en-US 或 ja-JP。"] pub String);

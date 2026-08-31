@@ -36,8 +36,24 @@ pub enum TranslationError {
 pub enum SpeechTranslationError {
     #[error(transparent)]
     Core(#[from] CoreError),
+    #[error("ASR stage failed: {0}")]
+    Asr(#[source] AsrError),
+    #[error("translation stage failed: {0}")]
+    Translation(#[source] TranslationError),
     #[error("speech translation provider `{provider}` failed: {message}")]
     Provider { provider: String, message: String },
+}
+
+impl From<AsrError> for SpeechTranslationError {
+    fn from(value: AsrError) -> Self {
+        Self::Asr(value)
+    }
+}
+
+impl From<TranslationError> for SpeechTranslationError {
+    fn from(value: TranslationError) -> Self {
+        Self::Translation(value)
+    }
 }
 
 #[derive(Debug, Error)]
@@ -46,42 +62,4 @@ pub enum ExportError {
     Core(#[from] CoreError),
     #[error("subtitle format `{0}` is not supported")]
     UnsupportedFormat(String),
-}
-
-#[derive(Debug, Error)]
-pub enum TranslationWorkflowError {
-    #[error("speech translation stage failed: {0}")]
-    SpeechTranslation(#[source] SpeechTranslationError),
-    #[error("ASR stage failed: {0}")]
-    Asr(#[source] AsrError),
-    #[error("translation stage failed: {0}")]
-    Translation(#[source] TranslationError),
-    #[error("subtitle export stage failed: {0}")]
-    Export(#[source] ExportError),
-    #[error(transparent)]
-    Core(#[from] CoreError),
-}
-
-impl From<SpeechTranslationError> for TranslationWorkflowError {
-    fn from(value: SpeechTranslationError) -> Self {
-        Self::SpeechTranslation(value)
-    }
-}
-
-impl From<AsrError> for TranslationWorkflowError {
-    fn from(value: AsrError) -> Self {
-        Self::Asr(value)
-    }
-}
-
-impl From<TranslationError> for TranslationWorkflowError {
-    fn from(value: TranslationError) -> Self {
-        Self::Translation(value)
-    }
-}
-
-impl From<ExportError> for TranslationWorkflowError {
-    fn from(value: ExportError) -> Self {
-        Self::Export(value)
-    }
 }

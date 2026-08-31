@@ -1,7 +1,10 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::error::ExportError;
+use crate::{
+    common::{LanguageTag, TimeRange},
+    error::{CoreError, ExportError},
+};
 
 /// 字幕导出接口。
 #[async_trait]
@@ -15,48 +18,38 @@ pub trait SubtitleExporter: Send + Sync {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubtitleDocument {
-    pub source_language: Option<crate::common::LanguageTag>,
-    pub target_language: crate::common::LanguageTag,
+    pub source_language: Option<LanguageTag>,
+    pub target_language: LanguageTag,
     /// 字幕 cue 列表。
     pub cues: Vec<SubtitleCue>,
 }
 
 impl SubtitleDocument {
-    pub fn from_translation(
-        transcript: &crate::asr::Transcript,
-        translated: &crate::translation::TranslatedTranscript,
-    ) -> Result<Self, crate::error::CoreError> {
-        translated.validate_against(transcript)?;
-        Ok(Self {
-            source_language: transcript.language.clone(),
-            target_language: translated.target_language.clone(),
-            cues: translated
-                .segments
-                .iter()
-                .map(|segment| SubtitleCue {
-                    id: uuid::Uuid::new_v4(),
-                    source_segment_id: segment.source_segment_id,
-                    range: segment.range,
-                    text: segment.translated_text.clone(),
-                })
-                .collect(),
-        })
+    pub fn from_cues(
+        source_language: Option<LanguageTag>,
+        target_language: LanguageTag,
+        cues: Vec<SubtitleCue>,
+    ) -> Self {
+        Self {
+            source_language,
+            target_language,
+            cues,
+        }
     }
 
-    pub fn validate(&self) -> Result<(), crate::error::CoreError> {
+    pub fn validate(&self) -> Result<(), CoreError> {
         let mut previous_start = None;
-        for cue in &self.cues {
+        for (index, cue) in self.cues.iter().enumerate() {
             cue.range.validate()?;
             if cue.text.trim().is_empty() {
-                return Err(crate::error::CoreError::InvalidResult(format!(
-                    "subtitle cue {} has empty text",
-                    cue.id
+                return Err(CoreError::InvalidResult(format!(
+                    "subtitle cue {index} has empty text",
                 )));
             }
             if let Some(previous_start) = previous_start
                 && cue.range.start_ms < previous_start
             {
-                return Err(crate::error::CoreError::InvalidResult(
+                return Err(CoreError::InvalidResult(
                     "subtitle cues must be sorted by start time".to_owned(),
                 ));
             }
@@ -68,12 +61,8 @@ impl SubtitleDocument {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubtitleCue {
-    /// 实体的稳定唯一标识。
-    pub id: crate::common::CueId,
-    /// 对应源文本片段的稳定唯一标识。
-    pub source_segment_id: crate::common::SegmentId,
     /// 该文本片段对应的音频时间范围。
-    pub range: crate::common::TimeRange,
+    pub range: TimeRange,
     /// 与该实体关联的文本内容。
     pub text: String,
 }
