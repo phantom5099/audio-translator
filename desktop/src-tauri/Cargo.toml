@@ -12,6 +12,6 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
-
-# The backend crate is intentionally not called by the static UI yet.
-# audio-translator-backend = { path = "../../backend" }
+async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }
+audio-translator = { path = "../../backend" }

@@ -1,9 +1,12 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use uuid::Uuid;
 
 use crate::error::CoreError;
+use uuid::Uuid;
+
+mod media;
+pub use media::MediaAudioInputService;
 
 /// 导入媒体在当前应用进程中的稳定标识。
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]

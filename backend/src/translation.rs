@@ -6,6 +6,9 @@ use crate::{
     error::{CoreError, TranslationError},
 };
 
+mod argos;
+pub use argos::ArgosTranslator;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TranslationSegment {
     pub range: TimeRange,
