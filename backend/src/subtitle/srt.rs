@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use tracing::{error, info};
 
 use super::{
     LineBreakPolicy, SubtitleDocument, SubtitleExportRequest, SubtitleExporter, SubtitleFormat,
@@ -15,13 +16,22 @@ impl SubtitleExporter for SrtSubtitleExporter {
         document: &SubtitleDocument,
         request: SubtitleExportRequest,
     ) -> Result<SubtitleOutput, ExportError> {
-        document.validate()?;
+        document.validate().map_err(|error| {
+            error!(
+                ?error,
+                cue_count = document.cues.len(),
+                "srt: document validation failed"
+            );
+            error
+        })?;
         if !matches!(request.format, SubtitleFormat::Srt) {
+            error!(format = ?request.format, "srt: unsupported format");
             return Err(ExportError::UnsupportedFormat(
                 request.format.extension().to_owned(),
             ));
         }
         if !matches!(request.encoding, TextEncoding::Utf8) {
+            error!(encoding = ?request.encoding, "srt: unsupported encoding");
             return Err(ExportError::Core(CoreError::UnsupportedFormat(
                 "only UTF-8 is supported".to_owned(),
             )));
@@ -38,6 +48,11 @@ impl SubtitleExporter for SrtSubtitleExporter {
             content.push_str(&apply_line_policy(&cue.text, &request.line_policy));
             content.push_str("\n\n");
         }
+        info!(
+            cue_count = document.cues.len(),
+            byte_len = content.len(),
+            "srt: export completed"
+        );
         Ok(SubtitleOutput {
             format: SubtitleFormat::Srt,
             bytes: content.into_bytes(),

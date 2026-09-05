@@ -10,6 +10,7 @@ use audio_translator::{
 };
 use serde::{Deserialize, Serialize};
 use tauri::State;
+use tracing::{debug, error, info};
 
 use crate::state::AppState;
 
@@ -25,6 +26,7 @@ pub async fn import_audio(
     source: AudioInputSource,
     state: State<'_, AppState>,
 ) -> Result<AudioAssetResponse, String> {
+    info!(?source, "command: import_audio");
     let asset = state
         .audio_input
         .import(source)
@@ -48,13 +50,22 @@ pub async fn start_translation(
     request: SpeechTranslationRequest,
     state: State<'_, AppState>,
 ) -> Result<SpeechTranslationId, String> {
+    info!(
+        ?asset_id,
+        source = ?request.source_language,
+        target = ?request.target_language,
+        "command: start_translation"
+    );
     let path = state
         .audio_assets
         .lock()
         .map_err(|_| "audio asset state is unavailable".to_owned())?
         .get(&asset_id)
         .cloned()
-        .ok_or_else(|| format!("audio asset {asset_id:?} was not found"))?;
+        .ok_or_else(|| {
+            error!(?asset_id, "command: audio asset not found");
+            format!("audio asset {asset_id:?} was not found")
+        })?;
     let output = state
         .speech_engine
         .translate_audio(path, request)
@@ -75,14 +86,23 @@ pub async fn export_subtitle(
     request: SubtitleExportRequest,
     state: State<'_, AppState>,
 ) -> Result<SubtitleOutput, String> {
+    info!(
+        ?translation_id,
+        ?request,
+        "command: export_subtitle"
+    );
     let output = state
         .translations
         .lock()
         .map_err(|_| "translation state is unavailable".to_owned())?
         .get(&translation_id)
         .cloned()
-        .ok_or_else(|| format!("speech translation {translation_id:?} was not found"))?;
+        .ok_or_else(|| {
+            error!(?translation_id, "command: speech translation not found");
+            format!("speech translation {translation_id:?} was not found")
+        })?;
     let document = subtitle_document(output);
+    debug!(cue_count = document.cues.len(), "command: subtitle document built");
     state
         .subtitle_exporter
         .export(&document, request)

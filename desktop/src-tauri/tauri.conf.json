@@ -15,5 +15,10 @@
     ],
     "security": { "csp": null }
   },
-  "bundle": { "active": true, "targets": "all", "icon": [] }
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [],
+    "externalBin": ["binaries/ffprobe", "binaries/ffmpeg"]
+  }
 }

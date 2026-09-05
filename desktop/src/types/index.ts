@@ -1,30 +1,31 @@
 export type WorkflowStage =
   | "idle"
-  | "parsing"
-  | "parsed"
-  | "translating"
-  | "translated"
+  | "importing"
+  | "imported"
+  | "speech-translating"
+  | "speech-translated"
   | "exporting"
   | "exported"
   | "error";
 
-export interface VideoFile {
-  name: string;
-  sizeBytes: number;
-  durationSeconds: number;
+export interface AudioMetadata {
+  title?: string | null;
+  duration_ms?: number | null;
+  media_type?: string | null;
+  size_bytes?: number | null;
+  cover?: { media_type: string; bytes: number[] } | null;
 }
 
 export interface ImportResult {
-  taskId: string;
-  file: VideoFile;
+  id: string;
+  file_name: string;
+  metadata: AudioMetadata;
 }
 
-export interface TranslateResult {
-  subtitleId: string;
-  cueCount: number;
-}
+export type TranslateResult = string;
 
 export interface ExportResult {
-  fileName: string;
-  content: Blob;
+  format: string;
+  bytes: number[];
+  suggested_name: string;
 }
