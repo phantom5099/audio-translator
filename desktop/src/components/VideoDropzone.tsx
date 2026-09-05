@@ -26,6 +26,7 @@ const MEDIA_EXTENSIONS = [
 
 export function VideoDropzone({ file, disabled, onFile }: Props) {
   const [dragActive, setDragActive] = useState(false);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const onFileRef = useRef(onFile);
   onFileRef.current = onFile;
   const disabledRef = useRef(disabled);
@@ -60,6 +61,21 @@ export function VideoDropzone({ file, disabled, onFile }: Props) {
       unlisten?.();
     };
   }, []);
+
+  // 把后端返回的封面字节转成 Object URL 供 <img> 使用，切文件/卸载时释放防内存泄漏
+  useEffect(() => {
+    const cover = file?.metadata.cover;
+    if (!cover || cover.bytes.length === 0) {
+      setCoverUrl(null);
+      return;
+    }
+    const blob = new Blob([new Uint8Array(cover.bytes)], { type: cover.media_type });
+    const url = URL.createObjectURL(blob);
+    setCoverUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [file?.metadata.cover]);
 
   const onBrowse = async () => {
     if (disabledRef.current) return;
@@ -97,7 +113,11 @@ export function VideoDropzone({ file, disabled, onFile }: Props) {
         }
       }}
     >
-      <div className="drop-icon">▣</div>
+      {coverUrl ? (
+        <img className="drop-cover" src={coverUrl} alt={fileName ?? "封面"} />
+      ) : (
+        <div className="drop-icon">▣</div>
+      )}
       <p className="drop-title">{fileName ?? "将本地视频拖到这里"}</p>
       <p className="drop-hint">
         {hasMeta
