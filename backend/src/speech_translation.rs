@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::{
@@ -48,12 +49,26 @@ impl SpeechTranslationEngine for AsrThenTranslationEngine {
         path: std::path::PathBuf,
         request: SpeechTranslationRequest,
     ) -> Result<SpeechTranslationOutput, SpeechTranslationError> {
+        info!(
+            audio = %path.display(),
+            source = ?request.source_language,
+            target = ?request.target_language,
+            "speech-translation: asr stage starting"
+        );
         let asr_request = asr::AsrRequest {
             source_language: request.source_language.clone(),
             options: request.options.clone(),
         };
         let transcript = self.asr.transcribe(path, asr_request).await?;
-        transcript.validate()?;
+        transcript.validate().map_err(|error| {
+            error!(
+                ?error,
+                segments = transcript.segments.len(),
+                language = ?transcript.language,
+                "speech-translation: transcript validation failed"
+            );
+            SpeechTranslationError::from(error)
+        })?;
 
         let source_language = transcript
             .language
@@ -67,6 +82,12 @@ impl SpeechTranslationEngine for AsrThenTranslationEngine {
                 text: segment.text.clone(),
             })
             .collect::<Vec<_>>();
+        let asr_segment_count = translation_segments.len();
+        debug!(
+            asr_segment_count,
+            language = ?source_language,
+            "speech-translation: asr stage done"
+        );
         let translation_request = translation::TranslationRequest {
             source_language: source_language.clone(),
             target_language: request.target_language.clone(),
@@ -74,9 +95,27 @@ impl SpeechTranslationEngine for AsrThenTranslationEngine {
             constraints: request.constraints.into_translation_constraints(),
             options: request.options,
         };
+        info!(
+            input_segment_count = asr_segment_count,
+            "speech-translation: translation stage starting"
+        );
         let translated = self.translator.translate(translation_request).await?;
-        translated.validate_against(&translation_segments)?;
+        let translated_segment_count = translated.segments.len();
+        translated.validate_against(&translation_segments).map_err(|error| {
+            error!(
+                ?error,
+                asr_segment_count,
+                translated_segment_count,
+                "speech-translation: translated output does not match asr segments"
+            );
+            SpeechTranslationError::from(error)
+        })?;
 
+        let final_segments = translated.segments.len();
+        info!(
+            final_segments,
+            "speech-translation: completed"
+        );
         Ok(SpeechTranslationOutput {
             source_language: translated.source_language.or(source_language),
             target_language: translated.target_language,

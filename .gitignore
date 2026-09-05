@@ -6,6 +6,18 @@
 /desktop/dist/
 /desktop/package-lock.json
 
+# Tauri sidecar binaries (ffmpeg/ffprobe, 体积大，按 target-triple 单独下载)
+/desktop/src-tauri/binaries/
+
+# Tauri 构建生成的 capabilities（由 cargo tauri dev/build 自动生成）
+/desktop/src-tauri/capabilities/
+
+# 本地下载的 ASR/翻译模型（体积大，按需下载）
+/models/
+
+# Python 虚拟环境
+/.venv/
+
 # Project documentation (local only)
 /docs/
 

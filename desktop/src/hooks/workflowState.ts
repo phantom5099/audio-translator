@@ -2,10 +2,8 @@ import type { ImportResult, TranslateResult, WorkflowStage } from "../types";
 
 export interface WorkflowState {
   stage: WorkflowStage;
-  file?: ImportResult["file"];
-  taskId?: string;
-  subtitleId?: string;
-  cueCount?: number;
+  file?: ImportResult;
+  translationId?: string;
   error?: string;
 }
 
@@ -28,11 +26,11 @@ export function workflowReducer(
     case "parse-started":
       return { stage: "parsing" };
     case "parse-succeeded":
-      return { stage: "parsed", ...action.result };
+      return { stage: "parsed", file: action.result };
     case "translate-started":
       return { ...state, stage: "translating", error: undefined };
     case "translate-succeeded":
-      return { ...state, stage: "translated", ...action.result };
+      return { ...state, stage: "translated", translationId: action.result };
     case "export-started":
       return { ...state, stage: "exporting", error: undefined };
     case "export-succeeded":
