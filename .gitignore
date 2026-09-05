@@ -12,6 +12,10 @@
 # Tauri 构建生成的 capabilities（由 cargo tauri dev/build 自动生成）
 /desktop/src-tauri/capabilities/
 
+# Tauri codegen 生成的 ACL/能力 schema（每次 build 重新生成，社区主流不入 git）
+# 来源：Tauri 官方 Discussion #8323 + 多个第三方项目实践
+/desktop/src-tauri/gen/schemas/
+
 # 本地下载的 ASR/翻译模型（体积大，按需下载）
 /models/
 

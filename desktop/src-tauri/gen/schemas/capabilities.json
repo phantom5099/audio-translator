@@ -1,1 +1,0 @@
-{"default":{"identifier":"default","description":"主窗口能力配置，允许核心 API 与 dialog 插件","local":true,"windows":["main"],"permissions":["core:default","dialog:default"]}}
