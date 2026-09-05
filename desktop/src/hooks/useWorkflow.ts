@@ -6,28 +6,28 @@ import { initialWorkflowState, workflowReducer } from "./workflowState";
 export function useWorkflow() {
   const [state, dispatch] = useReducer(workflowReducer, initialWorkflowState);
 
-  const importVideo = async (path?: string) => {
+  const importMedia = async (path?: string) => {
     if (!path || isWorkflowBusy(state.stage)) return;
-    dispatch({ type: "parse-started" });
+    dispatch({ type: "import-started" });
     try {
-      dispatch({ type: "parse-succeeded", result: await tauriAudioInputApi.importVideo(path) });
+      dispatch({ type: "import-succeeded", result: await tauriAudioInputApi.importMedia(path) });
     } catch {
-      dispatch({ type: "failed", message: "视频解析失败，请重新导入" });
+      dispatch({ type: "failed", message: "音频导入失败，请重新选择" });
     }
   };
 
-  const translate = async () => {
-    if (state.stage !== "parsed" || !state.file?.id) return;
-    dispatch({ type: "translate-started" });
+  const startSpeechTranslation = async () => {
+    if (state.stage !== "imported" || !state.file?.id) return;
+    dispatch({ type: "speech-translate-started" });
     try {
-      dispatch({ type: "translate-succeeded", result: await tauriTranslatorApi.translate(state.file.id) });
+      dispatch({ type: "speech-translate-succeeded", result: await tauriTranslatorApi.startSpeechTranslation(state.file.id) });
     } catch {
-      dispatch({ type: "failed", message: "翻译失败，请稍后重试" });
+      dispatch({ type: "failed", message: "语音翻译失败，请稍后重试" });
     }
   };
 
   const exportSubtitle = async () => {
-    if (state.stage !== "translated" || !state.translationId) return;
+    if (state.stage !== "speech-translated" || !state.translationId) return;
     dispatch({ type: "export-started" });
     try {
       const result = await tauriTranslatorApi.exportSubtitle(state.translationId);
@@ -46,5 +46,5 @@ export function useWorkflow() {
     }
   };
 
-  return { state, importVideo, translate, exportSubtitle };
+  return { state, importMedia, startSpeechTranslation, exportSubtitle };
 }

@@ -24,7 +24,7 @@ const MEDIA_EXTENSIONS = [
   "aac",
 ];
 
-export function VideoDropzone({ file, disabled, onFile }: Props) {
+export function MediaDropzone({ file, disabled, onFile }: Props) {
   const [dragActive, setDragActive] = useState(false);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const onFileRef = useRef(onFile);
@@ -62,7 +62,6 @@ export function VideoDropzone({ file, disabled, onFile }: Props) {
     };
   }, []);
 
-  // 把后端返回的封面字节转成 Object URL 供 <img> 使用，切文件/卸载时释放防内存泄漏
   useEffect(() => {
     const cover = file?.metadata.cover;
     if (!cover || cover.bytes.length === 0) {
@@ -81,7 +80,7 @@ export function VideoDropzone({ file, disabled, onFile }: Props) {
     if (disabledRef.current) return;
     const selected = await open({
       multiple: false,
-      filters: [{ name: "视频/音频", extensions: MEDIA_EXTENSIONS }],
+      filters: [{ name: "音视频", extensions: MEDIA_EXTENSIONS }],
     });
     if (typeof selected === "string") {
       onFileRef.current(selected);
@@ -118,11 +117,11 @@ export function VideoDropzone({ file, disabled, onFile }: Props) {
       ) : (
         <div className="drop-icon">▣</div>
       )}
-      <p className="drop-title">{fileName ?? "将本地视频拖到这里"}</p>
+      <p className="drop-title">{fileName ?? "将本地音频或视频拖到这里"}</p>
       <p className="drop-hint">
         {hasMeta
           ? `${formatSize(sizeBytes as number)} · ${formatDuration(Math.floor((durationMs as number) / 1000))}`
-          : "支持 MP4、MOV、MKV 等视频格式"}
+          : "支持 MP4、MOV、MKV、MP3 等音视频格式"}
       </p>
     </div>
   );

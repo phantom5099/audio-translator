@@ -180,7 +180,11 @@ struct ProbeDisposition {
     attached_pic: Option<u8>,
 }
 
-fn probe_media(ffprobe_path: &PathBuf, ffmpeg_path: &PathBuf, path: &PathBuf) -> Result<AudioMetadata, CoreError> {
+fn probe_media(
+    ffprobe_path: &PathBuf,
+    ffmpeg_path: &PathBuf,
+    path: &PathBuf,
+) -> Result<AudioMetadata, CoreError> {
     debug!(
         ffprobe = %ffprobe_path.display(),
         target = %path.display(),
@@ -219,17 +223,16 @@ fn probe_media(ffprobe_path: &PathBuf, ffmpeg_path: &PathBuf, path: &PathBuf) ->
             message: stderr.trim().to_owned(),
         });
     }
-    let probe: ProbeOutput =
-        serde_json::from_slice(&output.stdout).map_err(|error| {
-            error!(
-                stdout = %String::from_utf8_lossy(&output.stdout),
-                "probe_media: invalid ffprobe response: {error}"
-            );
-            CoreError::Provider {
-                provider: "ffprobe".to_owned(),
-                message: format!("invalid ffprobe response: {error}"),
-            }
-        })?;
+    let probe: ProbeOutput = serde_json::from_slice(&output.stdout).map_err(|error| {
+        error!(
+            stdout = %String::from_utf8_lossy(&output.stdout),
+            "probe_media: invalid ffprobe response: {error}"
+        );
+        CoreError::Provider {
+            provider: "ffprobe".to_owned(),
+            message: format!("invalid ffprobe response: {error}"),
+        }
+    })?;
     let cover_stream = probe.streams.iter().find(|stream| {
         stream
             .disposition
@@ -239,7 +242,15 @@ fn probe_media(ffprobe_path: &PathBuf, ffmpeg_path: &PathBuf, path: &PathBuf) ->
             == 1
     });
     let cover = cover_stream
-        .and_then(|stream| extract_cover(ffmpeg_path, path, stream.index, stream.codec_name.as_deref()));
+        .and_then(|stream| {
+            extract_cover(
+                ffmpeg_path,
+                path,
+                stream.index,
+                stream.codec_name.as_deref(),
+            )
+        })
+        .or_else(|| extract_video_thumbnail(ffmpeg_path, path));
     let duration_ms = probe
         .format
         .duration
@@ -264,7 +275,12 @@ fn probe_media(ffprobe_path: &PathBuf, ffmpeg_path: &PathBuf, path: &PathBuf) ->
     })
 }
 
-fn extract_cover(ffmpeg_path: &PathBuf, path: &PathBuf, index: u32, codec: Option<&str>) -> Option<CoverImage> {
+fn extract_cover(
+    ffmpeg_path: &PathBuf,
+    path: &PathBuf,
+    index: u32,
+    codec: Option<&str>,
+) -> Option<CoverImage> {
     debug!(
         ffmpeg = %ffmpeg_path.display(),
         target = %path.display(),
@@ -290,7 +306,10 @@ fn extract_cover(ffmpeg_path: &PathBuf, path: &PathBuf, index: u32, codec: Optio
         debug!("extract_cover: no cover bytes returned");
         return None;
     }
-    debug!(byte_len = bytes.stdout.len(), "extract_cover: cover extracted");
+    debug!(
+        byte_len = bytes.stdout.len(),
+        "extract_cover: cover extracted"
+    );
     Some(CoverImage {
         media_type: match codec {
             Some("png") => "image/png",
@@ -300,4 +319,33 @@ fn extract_cover(ffmpeg_path: &PathBuf, path: &PathBuf, index: u32, codec: Optio
         .to_owned(),
         bytes: bytes.stdout,
     })
+}
+
+fn extract_video_thumbnail(ffmpeg_path: &PathBuf, path: &PathBuf) -> Option<CoverImage> {
+    debug!(
+        ffmpeg = %ffmpeg_path.display(),
+        target = %path.display(),
+        "extract_video_thumbnail: running ffmpeg"
+    );
+    for seek in ["00:00:05", "00:00:00"] {
+        if let Ok(output) = std::process::Command::new(ffmpeg_path)
+            .args(["-ss", seek, "-i"])
+            .arg(path)
+            .args(["-frames:v", "1", "-q:v", "2", "-f", "image2pipe", "-"])
+            .output()
+        {
+            if !output.stdout.is_empty() {
+                debug!(
+                    byte_len = output.stdout.len(),
+                    seek, "extract_video_thumbnail: frame extracted"
+                );
+                return Some(CoverImage {
+                    media_type: "image/jpeg".to_owned(),
+                    bytes: output.stdout,
+                });
+            }
+        }
+    }
+    debug!("extract_video_thumbnail: no frame bytes returned");
+    None
 }

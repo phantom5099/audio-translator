@@ -2,19 +2,18 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ExportResult, ImportResult } from "../types";
 
 export interface AudioInputApi {
-  importVideo(path: string): Promise<ImportResult>;
+  importMedia(path: string): Promise<ImportResult>;
 }
 
 export interface TranslatorApi {
-  translate(assetId: string): Promise<string>;
+  startSpeechTranslation(assetId: string): Promise<string>;
   exportSubtitle(translationId: string): Promise<ExportResult>;
 }
 
-// 翻译目标语言默认简体中文
 const DEFAULT_TARGET_LANGUAGE = "zh-CN";
 
 export const tauriAudioInputApi: AudioInputApi = {
-  async importVideo(path: string): Promise<ImportResult> {
+  async importMedia(path: string): Promise<ImportResult> {
     return invoke<ImportResult>("import_audio", {
       source: { LocalFile: path },
     });
@@ -22,7 +21,7 @@ export const tauriAudioInputApi: AudioInputApi = {
 };
 
 export const tauriTranslatorApi: TranslatorApi = {
-  async translate(assetId: string): Promise<string> {
+  async startSpeechTranslation(assetId: string): Promise<string> {
     return invoke<string>("start_translation", {
       assetId,
       request: {
@@ -44,7 +43,6 @@ export const tauriTranslatorApi: TranslatorApi = {
     return invoke<ExportResult>("export_subtitle", {
       translationId,
       request: {
-        // 字幕导出默认 Srt + Utf8 + 保留换行
         format: "Srt",
         encoding: "Utf8",
         line_policy: "Preserve",
