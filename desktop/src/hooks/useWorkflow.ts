@@ -1,12 +1,12 @@
 import { useReducer } from "react";
 import { isWorkflowBusy } from "../config/workflow";
-import { tauriAudioInputApi, tauriTranslatorApi } from "../services/api";
+import { tauriAudioInputApi, tauriSpeechTranslationApi, tauriSubtitleExportApi } from "../services/api";
 import { initialWorkflowState, workflowReducer } from "./workflowState";
 
 export function useWorkflow() {
   const [state, dispatch] = useReducer(workflowReducer, initialWorkflowState);
 
-  const importMedia = async (path?: string) => {
+  const importMedia = async (path: string) => {
     if (!path || isWorkflowBusy(state.stage)) return;
     dispatch({ type: "import-started" });
     try {
@@ -17,20 +17,20 @@ export function useWorkflow() {
   };
 
   const startSpeechTranslation = async () => {
-    if (state.stage !== "imported" || !state.file?.id) return;
+    if (state.stage !== "imported") return;
     dispatch({ type: "speech-translate-started" });
     try {
-      dispatch({ type: "speech-translate-succeeded", result: await tauriTranslatorApi.startSpeechTranslation(state.file.id) });
+      dispatch({ type: "speech-translate-succeeded", result: await tauriSpeechTranslationApi.startSpeechTranslation(state.file.id) });
     } catch {
       dispatch({ type: "failed", message: "语音翻译失败，请稍后重试" });
     }
   };
 
   const exportSubtitle = async () => {
-    if (state.stage !== "speech-translated" || !state.translationId) return;
+    if (state.stage !== "speech-translated") return;
     dispatch({ type: "export-started" });
     try {
-      const result = await tauriTranslatorApi.exportSubtitle(state.translationId);
+      const result = await tauriSubtitleExportApi.exportSubtitle(state.translationId);
       const blob = new Blob([new Uint8Array(result.bytes)], {
         type: "text/plain;charset=utf-8",
       });

@@ -8,7 +8,7 @@ import type { ImportResult } from "../types";
 interface Props {
   file?: ImportResult;
   disabled: boolean;
-  onFile: (path?: string) => void;
+  onFile: (path: string) => void;
 }
 
 const MEDIA_EXTENSIONS = [

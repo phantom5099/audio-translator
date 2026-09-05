@@ -5,8 +5,11 @@ export interface AudioInputApi {
   importMedia(path: string): Promise<ImportResult>;
 }
 
-export interface TranslatorApi {
+export interface SpeechTranslationApi {
   startSpeechTranslation(assetId: string): Promise<string>;
+}
+
+export interface SubtitleExportApi {
   exportSubtitle(translationId: string): Promise<ExportResult>;
 }
 
@@ -20,7 +23,7 @@ export const tauriAudioInputApi: AudioInputApi = {
   },
 };
 
-export const tauriTranslatorApi: TranslatorApi = {
+export const tauriSpeechTranslationApi: SpeechTranslationApi = {
   async startSpeechTranslation(assetId: string): Promise<string> {
     return invoke<string>("start_translation", {
       assetId,
@@ -38,7 +41,9 @@ export const tauriTranslatorApi: TranslatorApi = {
       },
     });
   },
+};
 
+export const tauriSubtitleExportApi: SubtitleExportApi = {
   async exportSubtitle(translationId: string): Promise<ExportResult> {
     return invoke<ExportResult>("export_subtitle", {
       translationId,
