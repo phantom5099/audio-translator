@@ -112,11 +112,10 @@ impl SpeechTranslationEngine for AsrThenTranslationEngine {
         })?;
 
         let final_segments = translated.segments.len();
-        info!(
-            final_segments,
-            "speech-translation: completed"
-        );
+        let id = SpeechTranslationId::new();
+        info!(?id, final_segments, "speech-translation: completed");
         Ok(SpeechTranslationOutput {
+            id,
             source_language: translated.source_language.or(source_language),
             target_language: translated.target_language,
             segments: translated
@@ -165,6 +164,7 @@ impl SpeechTranslationConstraints {
 /// 语音翻译能力对外发布的、与具体 ASR/翻译实现无关的结果。
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SpeechTranslationOutput {
+    pub id: SpeechTranslationId,
     pub source_language: Option<LanguageTag>,
     pub target_language: LanguageTag,
     pub segments: Vec<SpeechTranslationSegment>,

@@ -71,7 +71,7 @@ pub async fn start_translation(
         .translate_audio(path, request)
         .await
         .map_err(|error| error.to_string())?;
-    let id = SpeechTranslationId::new();
+    let id = output.id;
     state
         .translations
         .lock()
