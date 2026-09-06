@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::process::Command;
+use tracing::{debug, error};
 
 use super::{AsrEngine, AsrRequest, Transcript, TranscriptSegment};
 use crate::{
@@ -35,29 +36,60 @@ impl AsrEngine for FasterWhisperAsrEngine {
         request: AsrRequest,
     ) -> Result<Transcript, AsrError> {
         let language = request.source_language.map(|value| language_code(&value));
+        debug!(
+            python = %self.python,
+            model = %self.model,
+            audio = %path.display(),
+            language = ?language,
+            "asr: starting faster-whisper worker"
+        );
         let output = Command::new(&self.python)
             .arg("-c")
             .arg(FASTER_WHISPER_WORKER)
             .arg(&self.model)
             .arg(language.as_deref().unwrap_or(""))
-            .arg(path)
+            .arg(&path)
+            .env("PYTHONUTF8", "1")
             .output()
-            .map_err(|error| AsrError::Provider {
-                provider: "faster-whisper".to_owned(),
-                message: format!("failed to start {}: {error}", self.python),
-            });
-        let output = output?;
+            .map_err(|error| {
+                error!(python = %self.python, "asr: failed to start worker: {error}");
+                AsrError::Provider {
+                    provider: "faster-whisper".to_owned(),
+                    message: format!("failed to start {}: {error}", self.python),
+                }
+            })?;
+        debug!(code = ?output.status.code(), "asr: worker finished");
         if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            error!(
+                code = ?output.status.code(),
+                stderr = stderr.trim(),
+                stdout = stdout.trim(),
+                "asr: worker failed"
+            );
             return Err(AsrError::Provider {
                 provider: "faster-whisper".to_owned(),
-                message: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+                message: stderr.trim().to_owned(),
             });
         }
         let response: FasterWhisperResponse =
-            serde_json::from_slice(&output.stdout).map_err(|error| AsrError::Provider {
-                provider: "faster-whisper".to_owned(),
-                message: format!("invalid worker response: {error}"),
+            serde_json::from_slice(&output.stdout).map_err(|error| {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                error!(
+                    stdout = stdout.trim(),
+                    "asr: invalid worker response: {error}"
+                );
+                AsrError::Provider {
+                    provider: "faster-whisper".to_owned(),
+                    message: format!("invalid worker response: {error}"),
+                }
             })?;
+        debug!(
+            language = ?response.language,
+            segment_count = response.segments.len(),
+            "asr: response parsed"
+        );
         let segments = response
             .segments
             .into_iter()
@@ -73,7 +105,10 @@ impl AsrEngine for FasterWhisperAsrEngine {
             language: response.language.map(LanguageTag::from),
             segments,
         };
-        transcript.validate().map_err(AsrError::Core)?;
+        transcript.validate().map_err(|error| {
+            error!(?error, "asr: transcript validation failed");
+            AsrError::Core(error)
+        })?;
         Ok(transcript)
     }
 }

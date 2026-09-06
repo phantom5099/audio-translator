@@ -2,18 +2,16 @@ import type { ImportResult, TranslateResult, WorkflowStage } from "../types";
 
 export interface WorkflowState {
   stage: WorkflowStage;
-  file?: ImportResult["file"];
-  taskId?: string;
-  subtitleId?: string;
-  cueCount?: number;
+  file?: ImportResult;
+  translationId?: string;
   error?: string;
 }
 
 export type WorkflowAction =
-  | { type: "parse-started" }
-  | { type: "parse-succeeded"; result: ImportResult }
-  | { type: "translate-started" }
-  | { type: "translate-succeeded"; result: TranslateResult }
+  | { type: "import-started" }
+  | { type: "import-succeeded"; result: ImportResult }
+  | { type: "speech-translate-started" }
+  | { type: "speech-translate-succeeded"; result: TranslateResult }
   | { type: "export-started" }
   | { type: "export-succeeded" }
   | { type: "failed"; message: string };
@@ -25,14 +23,14 @@ export function workflowReducer(
   action: WorkflowAction,
 ): WorkflowState {
   switch (action.type) {
-    case "parse-started":
-      return { stage: "parsing" };
-    case "parse-succeeded":
-      return { stage: "parsed", ...action.result };
-    case "translate-started":
-      return { ...state, stage: "translating", error: undefined };
-    case "translate-succeeded":
-      return { ...state, stage: "translated", ...action.result };
+    case "import-started":
+      return { stage: "importing" };
+    case "import-succeeded":
+      return { stage: "imported", file: action.result };
+    case "speech-translate-started":
+      return { ...state, stage: "speech-translating", error: undefined };
+    case "speech-translate-succeeded":
+      return { ...state, stage: "speech-translated", translationId: action.result };
     case "export-started":
       return { ...state, stage: "exporting", error: undefined };
     case "export-succeeded":
