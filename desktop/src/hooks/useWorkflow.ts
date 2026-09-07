@@ -3,6 +3,15 @@ import { isWorkflowBusy } from "../config/workflow";
 import { tauriAudioInputApi, tauriSpeechTranslationApi, tauriSubtitleExportApi } from "../services/api";
 import { initialWorkflowState, workflowReducer } from "./workflowState";
 
+function describeError(error: unknown, fallback: string): string {
+  if (typeof error === "string") return error.length > 200 ? `${error.slice(0, 200)}...` : error;
+  if (error instanceof Error) {
+    const message = error.message || fallback;
+    return message.length > 200 ? `${message.slice(0, 200)}...` : message;
+  }
+  return fallback;
+}
+
 export function useWorkflow() {
   const [state, dispatch] = useReducer(workflowReducer, initialWorkflowState);
 
@@ -11,8 +20,18 @@ export function useWorkflow() {
     dispatch({ type: "import-started" });
     try {
       dispatch({ type: "import-succeeded", result: await tauriAudioInputApi.importMedia(path) });
-    } catch {
-      dispatch({ type: "failed", message: "音频导入失败，请重新选择" });
+    } catch (error) {
+      dispatch({ type: "failed", message: describeError(error, "音频导入失败，请重新选择") });
+    }
+  };
+
+  const importUrl = async (url: string) => {
+    if (!url || isWorkflowBusy(state.stage)) return;
+    dispatch({ type: "import-started" });
+    try {
+      dispatch({ type: "import-succeeded", result: await tauriAudioInputApi.importUrl(url) });
+    } catch (error) {
+      dispatch({ type: "failed", message: describeError(error, "音频导入失败，请检查 URL 是否可访问") });
     }
   };
 
@@ -46,5 +65,5 @@ export function useWorkflow() {
     }
   };
 
-  return { state, importMedia, startSpeechTranslation, exportSubtitle };
+  return { state, importMedia, importUrl, startSpeechTranslation, exportSubtitle };
 }

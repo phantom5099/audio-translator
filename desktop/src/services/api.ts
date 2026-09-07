@@ -3,6 +3,7 @@ import type { ExportResult, ImportResult } from "../types";
 
 export interface AudioInputApi {
   importMedia(path: string): Promise<ImportResult>;
+  importUrl(url: string): Promise<ImportResult>;
 }
 
 export interface SpeechTranslationApi {
@@ -19,6 +20,11 @@ export const tauriAudioInputApi: AudioInputApi = {
   async importMedia(path: string): Promise<ImportResult> {
     return invoke<ImportResult>("import_audio", {
       source: { LocalFile: path },
+    });
+  },
+  async importUrl(url: string): Promise<ImportResult> {
+    return invoke<ImportResult>("import_audio", {
+      source: { Url: url },
     });
   },
 };
