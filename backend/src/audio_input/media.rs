@@ -13,6 +13,7 @@ pub struct MediaAudioInputService {
     root: PathBuf,
     ffprobe_path: PathBuf,
     ffmpeg_path: PathBuf,
+    yt_dlp_path: PathBuf,
 }
 
 impl MediaAudioInputService {
@@ -20,11 +21,13 @@ impl MediaAudioInputService {
         root: impl Into<PathBuf>,
         ffprobe_path: impl Into<PathBuf>,
         ffmpeg_path: impl Into<PathBuf>,
+        yt_dlp_path: impl Into<PathBuf>,
     ) -> Self {
         Self {
             root: root.into(),
             ffprobe_path: ffprobe_path.into(),
             ffmpeg_path: ffmpeg_path.into(),
+            yt_dlp_path: yt_dlp_path.into(),
         }
     }
 }
@@ -35,6 +38,7 @@ impl Default for MediaAudioInputService {
             std::env::temp_dir().join("audio-translator-assets"),
             "ffprobe",
             "ffmpeg",
+            "yt-dlp",
         )
     }
 }
@@ -61,53 +65,98 @@ impl AudioInputService for MediaAudioInputService {
             }
             //url拉取部分
             AudioInputSource::Url(url) => {
-                debug!(%url, "import: url source");
+                debug!(%url, "import: url source (yt-dlp)");
                 std::fs::create_dir_all(&self.root).map_err(|error| CoreError::Provider {
                     provider: "media-input".to_owned(),
                     message: format!("cannot create asset directory: {error}"),
                 })?;
-                let response = reqwest::get(&url)
+                let id = Uuid::new_v4();
+                let output_template = self
+                    .root
+                    .join(format!("{id}-%(title)s.%(ext)s"))
+                    .to_string_lossy()
+                    .into_owned();
+                let output = tokio::process::Command::new(&self.yt_dlp_path)
+                    .args([
+                        "-x",
+                        "-f",
+                        "bestaudio/best",
+                        "--no-playlist",
+                        "--no-progress",
+                        "--no-warnings",
+                        "--print-json",
+                        "--write-thumbnail",
+                        "--ffmpeg-location",
+                    ])
+                    .arg(&self.ffmpeg_path)
+                    .args(["-o", &output_template])
+                    .arg(&url)
+                    .output()
                     .await
                     .map_err(|error| CoreError::Provider {
-                        provider: "media-download".to_owned(),
-                        message: format!("failed to download {url}: {error}"),
+                        provider: "yt-dlp".to_owned(),
+                        message: format!("failed to start yt-dlp: {error}"),
                     })?;
-                let response =
-                    response
-                        .error_for_status()
-                        .map_err(|error| CoreError::Provider {
-                            provider: "media-download".to_owned(),
-                            message: format!(
-                                "media download returned an HTTP error for {url}: {error}"
-                            ),
-                        })?;
-                let bytes = response
-                    .bytes()
-                    .await
-                    .map_err(|error| CoreError::Provider {
-                        provider: "media-download".to_owned(),
-                        message: format!("failed to read {url}: {error}"),
-                    })?;
-                let byte_len = bytes.len();
-                if bytes.is_empty() {
-                    return Err(CoreError::InvalidInput(
-                        "downloaded media is empty".to_owned(),
-                    ));
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    error!(
+                        code = ?output.status.code(),
+                        stderr = stderr.trim(),
+                        "import: yt-dlp failed"
+                    );
+                    return Err(CoreError::Provider {
+                        provider: "yt-dlp".to_owned(),
+                        message: stderr.trim().to_owned(),
+                    });
                 }
-                let path = self.root.join(format!("{}.media", Uuid::new_v4()));
-                std::fs::write(&path, &bytes).map_err(|error| CoreError::Provider {
-                    provider: "media-download".to_owned(),
-                    message: format!("cannot persist downloaded media: {error}"),
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let info: YtDlpInfo = serde_json::from_str(&stdout).map_err(|error| {
+                    error!(stdout = %stdout, "import: invalid yt-dlp json: {error}");
+                    CoreError::Provider {
+                        provider: "yt-dlp".to_owned(),
+                        message: format!("invalid json response: {error}"),
+                    }
                 })?;
-                debug!(%url, byte_len, saved = %path.display(), "import: download saved");
-                let mut metadata = probe_media(&self.ffprobe_path, &self.ffmpeg_path, &path)?;
-                metadata.size_bytes = Some(byte_len as u64);
+                let path = if !info.filename.is_empty() {
+                    let p = PathBuf::from(&info.filename);
+                    if p.is_absolute() && p.exists() {
+                        p
+                    } else {
+                        self.root.join(&info.filename)
+                    }
+                } else {
+                    find_audio_by_prefix(&self.root, &id.to_string())?
+                };
+                if !path.exists() {
+                    return Err(CoreError::Provider {
+                        provider: "yt-dlp".to_owned(),
+                        message: format!("output audio file not found: {}", path.display()),
+                    });
+                }
+                let byte_len = std::fs::metadata(&path)
+                    .map(|value| value.len())
+                    .unwrap_or(0);
+                let cover = find_thumbnail(&path);
+                debug!(
+                    %url,
+                    byte_len,
+                    saved = %path.display(),
+                    has_cover = cover.is_some(),
+                    "import: yt-dlp saved"
+                );
                 let file_name = path
                     .file_name()
                     .map(|value| value.to_string_lossy().into_owned())
                     .ok_or_else(|| {
                         CoreError::InvalidInput("downloaded media has no file name".to_owned())
                     })?;
+                let metadata = AudioMetadata {
+                    title: Some(info.title),
+                    duration_ms: info.duration.map(|value| (value * 1000.0).round() as u64),
+                    media_type: info.ext,
+                    size_bytes: Some(byte_len),
+                    cover,
+                };
                 (path, file_name, metadata)
             }
         };
@@ -347,5 +396,80 @@ fn extract_video_thumbnail(ffmpeg_path: &PathBuf, path: &PathBuf) -> Option<Cove
         }
     }
     debug!("extract_video_thumbnail: no frame bytes returned");
+    None
+}
+
+/// yt-dlp `--print-json` 输出的 info_dict 字段子集。
+#[derive(Deserialize)]
+struct YtDlpInfo {
+    title: String,
+    duration: Option<f64>,
+    ext: Option<String>,
+    filename: String,
+}
+
+/// yt-dlp 落盘后扫描指定目录中以 `prefix` 开头的音频文件。
+fn find_audio_by_prefix(dir: &PathBuf, prefix: &str) -> Result<PathBuf, CoreError> {
+    let entries = std::fs::read_dir(dir).map_err(|error| CoreError::Provider {
+        provider: "yt-dlp".to_owned(),
+        message: format!("cannot read asset directory: {error}"),
+    })?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if let Some(name) = path.file_name().and_then(|v| v.to_str()) {
+            if name.starts_with(prefix) && is_audio_extension(name) {
+                return Ok(path);
+            }
+        }
+    }
+    Err(CoreError::Provider {
+        provider: "yt-dlp".to_owned(),
+        message: format!("no audio file found with prefix {prefix}"),
+    })
+}
+
+fn is_audio_extension(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    matches!(
+        lower.rsplit('.').next(),
+        Some("m4a" | "mp3" | "opus" | "webm" | "ogg" | "wav" | "flac" | "aac" | "mp4" | "mkv")
+    )
+}
+
+fn find_thumbnail(audio_path: &PathBuf) -> Option<CoverImage> {
+    let dir = audio_path.parent()?;
+    let stem = audio_path.file_stem()?.to_string_lossy().into_owned();
+    let entries = std::fs::read_dir(dir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|v| v.to_str()) else {
+            continue;
+        };
+        let lower = name.to_lowercase();
+        if !lower.starts_with(&stem) {
+            continue;
+        }
+        let ext = lower.rsplit('.').next();
+        let media_type = match ext {
+            Some("jpg") | Some("jpeg") => "image/jpeg",
+            Some("png") => "image/png",
+            Some("webp") => "image/webp",
+            _ => continue,
+        };
+        if let Ok(bytes) = std::fs::read(&path) {
+            if !bytes.is_empty() {
+                debug!(
+                    thumbnail = %path.display(),
+                    byte_len = bytes.len(),
+                    "find_thumbnail: thumbnail loaded"
+                );
+                return Some(CoverImage {
+                    media_type: media_type.to_owned(),
+                    bytes,
+                });
+            }
+        }
+    }
+    debug!("find_thumbnail: no thumbnail found");
     None
 }

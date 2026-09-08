@@ -45,11 +45,13 @@ impl AppState {
         std::env::set_var("ARGOS_PACKAGES_DIR", &argos_packages);
         let ffprobe_path = resolve_sidecar(app, "ffprobe");
         let ffmpeg_path = resolve_sidecar(app, "ffmpeg");
+        let yt_dlp_path = resolve_sidecar(app, "yt-dlp");
         Self {
             audio_input: MediaAudioInputService::new(
                 std::env::temp_dir().join("audio-translator-assets"),
                 ffprobe_path,
                 ffmpeg_path,
+                yt_dlp_path,
             ),
             speech_engine: AsrThenTranslationEngine::new(
                 Box::new(FasterWhisperAsrEngine::new(whisper_model).with_python(venv_python.clone())),
